@@ -21,6 +21,7 @@ import HealthBar from '@/components/HealthBar';
 import ItemCard from '@/components/ItemCard';
 import ShellIndicator from '@/components/ShellIndicator';
 import MessageToast from '@/components/MessageToast';
+import GameLogPanel from '@/components/GameLogPanel';
 import type { Item } from '@/store/gameStore';
 
 // ─── Types ───────────────────────────────────────────────
@@ -306,10 +307,9 @@ export default function GameplayScreen() {
         reason === 'empty'
           ? '子弹已耗尽，重新装填'
           : '剩余子弹均为空包弹，重新装填';
-      addLog(message, 'system');
-      pushToast(`重新装填 · 实弹 ${liveC} 发 | 空包弹 ${blankC} 发`, 'system');
+      addLog(`${message} · 实弹 ${liveC} 发 | 空包弹 ${blankC} 发`, 'system');
     },
-    [storeLoadShells, addLog, pushToast]
+    [storeLoadShells, addLog]
   );
 
   const reloadIfEmptyOrAllBlank = useCallback((): {
@@ -393,7 +393,6 @@ export default function GameplayScreen() {
         damage('player', dmg);
         playSFX('damage');
         showDamageText(`-${dmg}`, 'player');
-        pushToast(`实弹！受到 ${dmg} 点伤害`, 'damage');
         setSawActive(false);
 
         setTimeout(() => {
@@ -407,7 +406,6 @@ export default function GameplayScreen() {
           }
         }, 1200);
       } else {
-        pushToast('空包弹！获得额外回合！', 'info');
         setTimeout(() => {
           reloadIfEmptyOrAllBlank();
           setPhase('PLAYER_TURN');
@@ -420,7 +418,6 @@ export default function GameplayScreen() {
     playShootSequence,
     damage,
     setSawActive,
-    pushToast,
     triggerBloodFlash,
     showDamageText,
     reloadIfEmptyOrAllBlank,
@@ -437,10 +434,7 @@ export default function GameplayScreen() {
         damage('dealer', dmg);
         playSFX('damage');
         showDamageText(`-${dmg}`, 'dealer');
-        pushToast(`命中！庄家受到 ${dmg} 点伤害`, 'damage');
         setSawActive(false);
-      } else {
-        pushToast('空包弹...', 'info');
       }
 
       setTimeout(() => {
@@ -460,7 +454,6 @@ export default function GameplayScreen() {
     playShootSequence,
     damage,
     setSawActive,
-    pushToast,
     showDamageText,
     reloadIfEmptyOrAllBlank,
     setPhase,
@@ -477,7 +470,6 @@ export default function GameplayScreen() {
       // Check handcuffs skip
       if (s.skipDealerTurn) {
         setSkipDealerTurn(false);
-        pushToast('庄家被手铐束缚，跳过回合', 'item');
         addLog('庄家被手铐束缚，跳过回合', 'info');
         setTimeout(() => {
           reloadIfEmptyOrAllBlank();
@@ -555,7 +547,6 @@ export default function GameplayScreen() {
             heal('dealer', 1);
             removeItem('dealer', item.id);
             playSFX('item-use');
-            pushToast('庄家使用了香烟，恢复 1 生命', 'heal');
             addLog('庄家使用了香烟', 'item');
           }
           break;
@@ -564,7 +555,6 @@ export default function GameplayScreen() {
             setSawActive(true);
             removeItem('dealer', item.id);
             playSFX('saw');
-            pushToast('庄家使用了手锯', 'item');
             addLog('庄家使用了手锯，下一发伤害翻倍', 'item');
           }
           break;
@@ -572,7 +562,6 @@ export default function GameplayScreen() {
           setSkipDealerTurn(true);
           removeItem('dealer', item.id);
           playSFX('metal-clank');
-          pushToast('庄家使用了手铐，你下回合被跳过', 'item');
           addLog('庄家使用了手铐', 'item');
           break;
         case 'beer': {
@@ -583,7 +572,6 @@ export default function GameplayScreen() {
             useGameStore.getState().useCurrentShell();
             removeItem('dealer', item.id);
             playSFX('glass-break');
-            pushToast(`庄家使用了啤酒，弹出${st === 'live' ? '实弹' : '空包弹'}`, 'item');
           }
           break;
         }
@@ -603,7 +591,7 @@ export default function GameplayScreen() {
           break;
       }
     },
-    [heal, removeItem, setSawActive, setSkipDealerTurn, revealShell, pushToast, addLog]
+    [heal, removeItem, setSawActive, setSkipDealerTurn, revealShell, addLog]
   );
 
   // ── Execute dealer shoot ──
@@ -635,7 +623,6 @@ export default function GameplayScreen() {
           damage('dealer', dmg);
           playSFX('damage');
           showDamageText(`-${dmg}`, 'dealer');
-          pushToast(`庄家实弹自伤 ${dmg} 点！`, 'damage');
           setSawActive(false);
 
           setTimeout(() => {
@@ -653,7 +640,6 @@ export default function GameplayScreen() {
             }
           }, 1200);
         } else {
-          pushToast('庄家空包弹自射，继续行动', 'info');
           setTimeout(() => {
             // Dealer gets extra turn - recurse
             const ns = useGameStore.getState();
@@ -685,10 +671,7 @@ export default function GameplayScreen() {
           damage('player', dmg);
           playSFX('damage');
           showDamageText(`-${dmg}`, 'player');
-          pushToast(`庄家命中！你受到 ${dmg} 点伤害`, 'damage');
           setSawActive(false);
-        } else {
-          pushToast('庄家打空！空包弹', 'info');
         }
 
         setTimeout(() => {
@@ -730,7 +713,6 @@ export default function GameplayScreen() {
         case 'cigarette': {
           // Guillotine blocks healing
           if (guillotineTriggered) {
-            pushToast('闸刀已触发！无法恢复生命', 'damage');
             return;
           }
           if (playerHP < playerMaxHP) {
@@ -738,7 +720,6 @@ export default function GameplayScreen() {
             removeItem('player', item.id);
             playSFX('item-use');
             setItemEffectAnim('cigarette');
-            pushToast('恢复 1 点生命值', 'heal');
             setTimeout(() => setItemEffectAnim(null), ITEM_EFFECT_DURATION);
           }
           break;
@@ -751,7 +732,6 @@ export default function GameplayScreen() {
             removeItem('player', item.id);
             playSFX('saw');
             setItemEffectAnim('handsaw');
-            pushToast('手锯已装备，下一发伤害翻倍', 'item');
             addLog('手锯已装备，下一发伤害翻倍', 'item');
             setTimeout(() => setItemEffectAnim(null), ITEM_EFFECT_DURATION);
           }
@@ -763,7 +743,6 @@ export default function GameplayScreen() {
           removeItem('player', item.id);
           playSFX('metal-clank');
           setItemEffectAnim('handcuffs');
-          pushToast('手铐已使用，庄家下回合被跳过', 'item');
           addLog('手铐已使用，庄家下回合被跳过', 'item');
           setTimeout(() => setItemEffectAnim(null), ITEM_EFFECT_DURATION);
           break;
@@ -778,7 +757,6 @@ export default function GameplayScreen() {
             removeItem('player', item.id);
             playSFX('glass-break');
             setItemEffectAnim('beer');
-            pushToast(`啤酒弹出了${st === 'live' ? '实弹' : '空包弹'}`, 'item');
             setEjectedShellType(st);
             setShellEjectAnim(true);
             setTimeout(() => {
@@ -800,7 +778,6 @@ export default function GameplayScreen() {
             removeItem('player', item.id);
             playSFX('item-use');
             setItemEffectAnim('magnifier');
-            pushToast(`当前子弹: ${shell.type === 'live' ? '实弹' : '空包弹'}`, shell.type === 'live' ? 'damage' : 'info');
             setTimeout(() => {
               setItemEffectAnim(null);
               setRevealedShellIndex(null);
@@ -812,7 +789,6 @@ export default function GameplayScreen() {
         // ─── 肾上腺素: steal dealer item ───
         case 'adrenaline': {
           if (s.dealerItems.length === 0) {
-            pushToast('庄家没有道具可偷！', 'info');
             return;
           }
           const randomIdx = Math.floor(Math.random() * s.dealerItems.length);
@@ -823,7 +799,6 @@ export default function GameplayScreen() {
             removeItem('player', item.id);
             playSFX('item-use');
             setItemEffectAnim('adrenaline');
-            pushToast(`偷取了庄家的 ${stolen.type === 'cigarette' ? '香烟' : stolen.type === 'handsaw' ? '手锯' : stolen.type === 'handcuffs' ? '手铐' : stolen.type === 'beer' ? '啤酒' : stolen.type === 'magnifier' ? '放大镜' : stolen.type === 'medicine' ? '过期药品' : stolen.type === 'inverter' ? '逆变器' : stolen.type === 'phone' ? '手机' : stolen.type === 'adrenaline' ? '肾上腺素' : '道具'}！`, 'item');
             addLog('偷取了庄家的道具', 'item');
             setTimeout(() => setItemEffectAnim(null), ITEM_EFFECT_DURATION);
           }
@@ -833,7 +808,6 @@ export default function GameplayScreen() {
         // ─── 过期药品: 50% +2 HP, 50% -1 HP ───
         case 'medicine': {
           if (guillotineTriggered) {
-            pushToast('闸刀已触发！无法使用药品', 'damage');
             return;
           }
           const roll = Math.random();
@@ -843,13 +817,11 @@ export default function GameplayScreen() {
 
           if (roll < 0.5) {
             heal('player', 2);
-            pushToast('过期药品生效！恢复 2 点生命', 'heal');
             addLog('过期药品生效，恢复 2 点生命', 'heal');
           } else {
             damage('player', 1);
             triggerBloodFlash();
             showDamageText('-1', 'player');
-            pushToast('过期药品失效！失去 1 点生命', 'damage');
             addLog('过期药品失效，失去 1 点生命', 'damage');
           }
           setTimeout(() => setItemEffectAnim(null), ITEM_EFFECT_DURATION);
@@ -869,7 +841,6 @@ export default function GameplayScreen() {
             removeItem('player', item.id);
             playSFX('item-use');
             setItemEffectAnim('inverter');
-            pushToast(`子弹已翻转为${newType === 'live' ? '实弹' : '空包弹'}`, 'item');
             addLog(`逆变器翻转了子弹类型`, 'item');
             setTimeout(() => setItemEffectAnim(null), ITEM_EFFECT_DURATION);
           }
@@ -884,9 +855,6 @@ export default function GameplayScreen() {
               futureIndices.push(i);
             }
           }
-          if (futureIndices.length === 0) {
-            pushToast('没有未知的子弹可揭示', 'info');
-          }
           removeItem('player', item.id);
           playSFX('phone-ring');
           setItemEffectAnim('phone');
@@ -894,11 +862,6 @@ export default function GameplayScreen() {
           if (futureIndices.length > 0) {
             const ri = futureIndices[Math.floor(Math.random() * futureIndices.length)];
             revealShell(ri);
-            const revealed = s.shells[ri];
-            pushToast(
-              `神秘提示: 第 ${ri - s.currentShellIndex} 发是${revealed.type === 'live' ? '实弹' : '空包弹'}`,
-              revealed.type === 'live' ? 'damage' : 'info'
-            );
             addLog(`手机揭示了第 ${ri - s.currentShellIndex} 发子弹`, 'item');
           }
           setTimeout(() => setItemEffectAnim(null), ITEM_EFFECT_DURATION);
@@ -922,7 +885,6 @@ export default function GameplayScreen() {
       setSawActive,
       setSkipDealerTurn,
       revealShell,
-      pushToast,
       addLog,
       triggerBloodFlash,
       showDamageText,
@@ -985,7 +947,7 @@ export default function GameplayScreen() {
           }}
         >
           {/* Left: Round info */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <span
               className="font-chinese text-sm font-medium tracking-wider"
               style={{ color: 'var(--text-primary)' }}
@@ -1008,6 +970,32 @@ export default function GameplayScreen() {
             >
               {roundLabel.text}
             </span>
+            {sawActive && (
+              <span
+                className="flex items-center gap-1 font-chinese text-xs px-2 py-0.5 rounded-full border"
+                style={{
+                  color: 'var(--accent-red)',
+                  borderColor: 'var(--accent-red)',
+                  backgroundColor: 'rgba(220, 38, 38, 0.2)',
+                }}
+              >
+                <Crosshair className="w-3 h-3" />
+                手锯
+              </span>
+            )}
+            {skipDealerTurn && (
+              <span
+                className="flex items-center gap-1 font-chinese text-xs px-2 py-0.5 rounded-full border"
+                style={{
+                  color: 'var(--accent-gold)',
+                  borderColor: 'var(--accent-gold)',
+                  backgroundColor: 'rgba(212, 165, 32, 0.2)',
+                }}
+              >
+                <Shield className="w-3 h-3" />
+                跳过
+              </span>
+            )}
           </div>
 
           {/* Center: Phase message */}
@@ -1040,8 +1028,12 @@ export default function GameplayScreen() {
           </button>
         </div>
 
-        {/* ═══ Main Game Area ═══ */}
-        <div className="flex-1 flex flex-col items-center justify-between px-4 py-2 sm:py-4 relative">
+        {/* ═══ Game Log + Main Game Area ═══ */}
+        <div className="flex-1 flex overflow-hidden">
+          <GameLogPanel />
+
+          {/* ═══ Main Game Area ═══ */}
+          <div className="flex-1 flex flex-col items-center justify-between px-4 py-2 sm:py-4 relative overflow-y-auto">
           {/* ─── Dealer Section ─── */}
           <div className="w-full max-w-4xl flex flex-col items-center gap-2">
             {/* Dealer HP */}
@@ -1192,48 +1184,6 @@ export default function GameplayScreen() {
                 )}
               </AnimatePresence>
             </div>
-
-            {/* Saw active indicator */}
-            <AnimatePresence>
-              {sawActive && (
-                <motion.div
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0, opacity: 0 }}
-                  className="flex items-center gap-2 px-4 py-1.5 rounded-full border"
-                  style={{
-                    color: 'var(--accent-red)',
-                    borderColor: 'var(--accent-red)',
-                    backgroundColor: 'rgba(220, 38, 38, 0.2)',
-                    fontSize: '14px',
-                  }}
-                >
-                  <Crosshair className="w-4 h-4" />
-                  <span className="font-pixel">手锯生效 - 伤害 x2</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Skip dealer turn indicator */}
-            <AnimatePresence>
-              {skipDealerTurn && (
-                <motion.div
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0, opacity: 0 }}
-                  className="flex items-center gap-2 px-4 py-1.5 rounded-full border"
-                  style={{
-                    color: 'var(--accent-gold)',
-                    borderColor: 'var(--accent-gold)',
-                    backgroundColor: 'rgba(212, 165, 32, 0.2)',
-                    fontSize: '14px',
-                  }}
-                >
-                  <Shield className="w-4 h-4" />
-                  <span className="font-pixel">庄家下回合被跳过</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
 
             {/* Revealed shell indicator */}
             <AnimatePresence>
@@ -1411,6 +1361,7 @@ export default function GameplayScreen() {
             </div>
           </div>
         </div>
+      </div>
       </motion.div>
 
       {/* ═══ Overlays ═══ */}
