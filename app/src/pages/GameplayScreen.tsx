@@ -294,20 +294,40 @@ export default function GameplayScreen() {
     initRound(false);
   }, [isInitialized, phase, currentRound, initRound]);
 
-  // ── Shell reload (when empty) ──
-  const reloadIfEmpty = useCallback(() => {
-    const s = useGameStore.getState();
-    if (s.currentShellIndex >= s.shells.length) {
+  // ── Shell reload (when spent or no live shells remain) ──
+  const reloadShells = useCallback(
+    (reason: 'empty' | 'no-live') => {
+      const s = useGameStore.getState();
       const newShells = loadShells(s.currentRound);
       storeLoadShells(newShells);
       const liveC = newShells.filter((sh) => sh.type === 'live').length;
       const blankC = newShells.filter((sh) => sh.type === 'blank').length;
-      addLog('子弹已耗尽，重新装填', 'system');
+      const message =
+        reason === 'empty'
+          ? '子弹已耗尽，重新装填'
+          : '剩余子弹均为空包弹，重新装填';
+      addLog(message, 'system');
       pushToast(`重新装填 · 实弹 ${liveC} 发 | 空包弹 ${blankC} 发`, 'system');
-      return true;
+    },
+    [storeLoadShells, addLog, pushToast]
+  );
+
+  const reloadIfEmptyOrAllBlank = useCallback((): {
+    reloaded: boolean;
+    reason: 'empty' | 'no-live' | null;
+  } => {
+    const s = useGameStore.getState();
+    const remaining = s.shells.slice(s.currentShellIndex);
+    if (remaining.length === 0) {
+      reloadShells('empty');
+      return { reloaded: true, reason: 'empty' };
     }
-    return false;
-  }, [storeLoadShells, addLog, pushToast]);
+    if (remaining.every((sh) => sh.type === 'blank')) {
+      reloadShells('no-live');
+      return { reloaded: true, reason: 'no-live' };
+    }
+    return { reloaded: false, reason: null };
+  }, [reloadShells]);
 
   // ── Shooting animation sequence ──
   const playShootSequence = useCallback(
@@ -379,7 +399,7 @@ export default function GameplayScreen() {
         setTimeout(() => {
           const ns = useGameStore.getState();
           if (ns.playerHP > 0 && ns.dealerHP > 0) {
-            if (reloadIfEmpty()) {
+            if (reloadIfEmptyOrAllBlank().reloaded) {
               setTimeout(() => setPhase('DEALER_TURN'), 500);
             } else {
               setPhase('DEALER_TURN');
@@ -388,7 +408,10 @@ export default function GameplayScreen() {
         }, 1200);
       } else {
         pushToast('空包弹！获得额外回合！', 'info');
-        setPhase('PLAYER_TURN');
+        setTimeout(() => {
+          reloadIfEmptyOrAllBlank();
+          setPhase('PLAYER_TURN');
+        }, 600);
       }
     });
   }, [
@@ -400,7 +423,7 @@ export default function GameplayScreen() {
     pushToast,
     triggerBloodFlash,
     showDamageText,
-    reloadIfEmpty,
+    reloadIfEmptyOrAllBlank,
     setPhase,
   ]);
 
@@ -423,7 +446,7 @@ export default function GameplayScreen() {
       setTimeout(() => {
         const ns = useGameStore.getState();
         if (ns.playerHP > 0 && ns.dealerHP > 0) {
-          if (reloadIfEmpty()) {
+          if (reloadIfEmptyOrAllBlank().reloaded) {
             setTimeout(() => setPhase('DEALER_TURN'), 500);
           } else {
             setPhase('DEALER_TURN');
@@ -439,7 +462,7 @@ export default function GameplayScreen() {
     setSawActive,
     pushToast,
     showDamageText,
-    reloadIfEmpty,
+    reloadIfEmptyOrAllBlank,
     setPhase,
   ]);
 
@@ -457,10 +480,19 @@ export default function GameplayScreen() {
         pushToast('庄家被手铐束缚，跳过回合', 'item');
         addLog('庄家被手铐束缚，跳过回合', 'info');
         setTimeout(() => {
-          reloadIfEmpty();
+          reloadIfEmptyOrAllBlank();
           setPhase('PLAYER_TURN');
           pushToast('你的回合', 'info');
         }, 1000);
+        return;
+      }
+
+      // Avoid dealer thinking over an empty or all-blank magazine
+      if (reloadIfEmptyOrAllBlank().reloaded) {
+        setTimeout(() => {
+          setPhase('PLAYER_TURN');
+          pushToast('你的回合', 'info');
+        }, 600);
         return;
       }
 
@@ -501,7 +533,16 @@ export default function GameplayScreen() {
     }, 600);
 
     return () => clearTimeout(timer);
-  }, [phase]);
+  }, [
+    phase,
+    shells,
+    currentShellIndex,
+    reloadIfEmptyOrAllBlank,
+    setPhase,
+    setSkipDealerTurn,
+    pushToast,
+    addLog,
+  ]);
 
   // ── Execute dealer item use ──
   const executeDealerItemUse = useCallback(
@@ -570,12 +611,12 @@ export default function GameplayScreen() {
     const s = useGameStore.getState();
     const remainingShells = s.shells.slice(s.currentShellIndex);
 
-    if (remainingShells.length === 0) {
-      reloadIfEmpty();
+    // Defensive: skip an empty or all-blank magazine before the dealer acts
+    if (reloadIfEmptyOrAllBlank().reloaded) {
       setTimeout(() => {
         setPhase('PLAYER_TURN');
         pushToast('你的回合', 'info');
-      }, 800);
+      }, 600);
       return;
     }
 
@@ -600,7 +641,7 @@ export default function GameplayScreen() {
           setTimeout(() => {
             const ns = useGameStore.getState();
             if (ns.dealerHP > 0 && ns.playerHP > 0) {
-              if (reloadIfEmpty()) {
+              if (reloadIfEmptyOrAllBlank().reloaded) {
                 setTimeout(() => {
                   setPhase('PLAYER_TURN');
                   pushToast('你的回合', 'info');
@@ -616,14 +657,23 @@ export default function GameplayScreen() {
           setTimeout(() => {
             // Dealer gets extra turn - recurse
             const ns = useGameStore.getState();
-            if (ns.currentShellIndex < ns.shells.length) {
-              setPhase('DEALER_TURN');
-            } else {
-              reloadIfEmpty();
+            if (ns.currentShellIndex >= ns.shells.length) {
+              // Magazine physically empty: reload and pass turn to player
+              reloadIfEmptyOrAllBlank();
               setTimeout(() => {
                 setPhase('PLAYER_TURN');
                 pushToast('你的回合', 'info');
               }, 600);
+            } else {
+              // If remaining shells are all blanks, reload and pass turn to player
+              if (reloadIfEmptyOrAllBlank().reloaded) {
+                setTimeout(() => {
+                  setPhase('PLAYER_TURN');
+                  pushToast('你的回合', 'info');
+                }, 600);
+              } else {
+                setPhase('DEALER_TURN');
+              }
             }
           }, 1000);
         }
@@ -644,7 +694,7 @@ export default function GameplayScreen() {
         setTimeout(() => {
           const ns = useGameStore.getState();
           if (ns.dealerHP > 0 && ns.playerHP > 0) {
-            if (reloadIfEmpty()) {
+            if (reloadIfEmptyOrAllBlank().reloaded) {
               setTimeout(() => {
                 setPhase('PLAYER_TURN');
                 pushToast('你的回合', 'info');
@@ -664,7 +714,7 @@ export default function GameplayScreen() {
     pushToast,
     triggerBloodFlash,
     showDamageText,
-    reloadIfEmpty,
+    reloadIfEmptyOrAllBlank,
     setPhase,
   ]);
 
@@ -734,6 +784,7 @@ export default function GameplayScreen() {
             setTimeout(() => {
               setItemEffectAnim(null);
               setShellEjectAnim(false);
+              reloadIfEmptyOrAllBlank();
             }, ITEM_EFFECT_DURATION);
           }
           break;
@@ -875,6 +926,7 @@ export default function GameplayScreen() {
       addLog,
       triggerBloodFlash,
       showDamageText,
+      reloadIfEmptyOrAllBlank,
     ]
   );
 
