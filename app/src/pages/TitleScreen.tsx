@@ -268,7 +268,7 @@ export default function TitleScreen() {
 
       if (e.key === 'Enter' || e.key === ' ') {
         playSFX('shotgun-pump');
-        navigate('/tutorial');
+        navigate('/play');
       } else if (e.key === 'h' || e.key === 'H') {
         navigate('/tutorial');
       } else if (e.key === 's' || e.key === 'S') {
@@ -282,7 +282,7 @@ export default function TitleScreen() {
 
   const handleStartGame = useCallback(() => {
     playSFX('shotgun-pump');
-    navigate('/tutorial');
+    navigate('/play');
   }, [navigate]);
 
   const handleTutorial = useCallback(() => {
