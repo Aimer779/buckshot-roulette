@@ -123,6 +123,8 @@ function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
     setSfxVolume,
     showTutorial,
     setShowTutorial,
+    itemEffectTipsEnabled,
+    setItemEffectTipsEnabled,
   } = useGameStore();
 
   return (
@@ -227,6 +229,30 @@ function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                   className={`
                     absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform duration-200
                     ${!showTutorial ? 'translate-x-6' : 'translate-x-0.5'}
+                  `}
+                />
+              </button>
+            </div>
+
+            {/* Item effect tips toggle */}
+            <div className="flex items-center justify-between">
+              <span className="font-chinese text-base" style={{ color: 'var(--text-primary)' }}>
+                装备效果提示
+              </span>
+              <button
+                onClick={() => {
+                  setItemEffectTipsEnabled(!itemEffectTipsEnabled);
+                  playSFX('shotgun-click', 0.3);
+                }}
+                className={`
+                  relative w-12 h-6 rounded-full transition-colors duration-200
+                  ${itemEffectTipsEnabled ? 'bg-accent-red' : 'bg-bg-elevated'}
+                `}
+              >
+                <div
+                  className={`
+                    absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform duration-200
+                    ${itemEffectTipsEnabled ? 'translate-x-6' : 'translate-x-0.5'}
                   `}
                 />
               </button>

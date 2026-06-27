@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { motion } from 'framer-motion';
-import { ITEM_INFO } from '@/store/gameStore';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { ITEM_INFO, useGameStore } from '@/store/gameStore';
 import type { Item, ItemType } from '@/store/gameStore';
 
 interface ItemCardProps {
@@ -27,8 +28,9 @@ const ItemCard = memo(function ItemCard({
   const isSmall = size === 'sm';
   const sizeClass = isSmall ? 'w-16 h-16' : 'w-20 h-20';
   const imgSize = isSmall ? 'w-10 h-10' : 'w-12 h-12';
+  const itemEffectTipsEnabled = useGameStore((s) => s.itemEffectTipsEnabled);
 
-  return (
+  const card = (
     <motion.button
       whileHover={disabled ? {} : { scale: 1.08 }}
       whileTap={disabled ? {} : { scale: 0.95 }}
@@ -45,7 +47,6 @@ const ItemCard = memo(function ItemCard({
         }
       `}
       style={{ backgroundColor: 'var(--bg-surface)' }}
-      title={info?.name || item.type}
     >
       <img
         src={info?.image || '/item-magnifier.png'}
@@ -60,6 +61,22 @@ const ItemCard = memo(function ItemCard({
         />
       )}
     </motion.button>
+  );
+
+  if (!itemEffectTipsEnabled || !info) {
+    return card;
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{card}</TooltipTrigger>
+      <TooltipContent side="top" sideOffset={8}>
+        <div className="flex flex-col gap-1 max-w-[200px]">
+          <span className="font-chinese font-bold text-sm">{info.name}</span>
+          <span className="font-chinese text-xs opacity-90">{info.description}</span>
+        </div>
+      </TooltipContent>
+    </Tooltip>
   );
 });
 

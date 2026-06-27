@@ -75,6 +75,7 @@ export interface GameState {
   crtEnabled: boolean;
   musicVolume: number;
   sfxVolume: number;
+  itemEffectTipsEnabled: boolean;
 
   // Game log
   logs: GameLog[];
@@ -105,6 +106,7 @@ export interface GameState {
   setCrtEnabled: (enabled: boolean) => void;
   setMusicVolume: (volume: number) => void;
   setSfxVolume: (volume: number) => void;
+  setItemEffectTipsEnabled: (enabled: boolean) => void;
   setWinner: (winner: 'player' | 'dealer' | null) => void;
 
   // Convenience
@@ -131,6 +133,7 @@ export const makeItem = (type: ItemType): Item => ({
 });
 
 const TUTORIAL_ROUND_COMPLETED_KEY = 'buckshot-roulette:tutorial-round-completed';
+const ITEM_EFFECT_TIPS_ENABLED_KEY = 'buckshot-roulette:item-effect-tips-enabled';
 
 const readTutorialPreference = () => {
   if (typeof window === 'undefined') return true;
@@ -143,6 +146,20 @@ const writeTutorialPreference = (showTutorial: boolean) => {
     window.localStorage.removeItem(TUTORIAL_ROUND_COMPLETED_KEY);
   } else {
     window.localStorage.setItem(TUTORIAL_ROUND_COMPLETED_KEY, 'true');
+  }
+};
+
+const readItemEffectTipsPreference = () => {
+  if (typeof window === 'undefined') return true;
+  return window.localStorage.getItem(ITEM_EFFECT_TIPS_ENABLED_KEY) !== 'false';
+};
+
+const writeItemEffectTipsPreference = (enabled: boolean) => {
+  if (typeof window === 'undefined') return;
+  if (enabled) {
+    window.localStorage.removeItem(ITEM_EFFECT_TIPS_ENABLED_KEY);
+  } else {
+    window.localStorage.setItem(ITEM_EFFECT_TIPS_ENABLED_KEY, 'false');
   }
 };
 
@@ -193,6 +210,7 @@ const initialState = {
   crtEnabled: true,
   musicVolume: 0.7,
   sfxVolume: 0.8,
+  itemEffectTipsEnabled: readItemEffectTipsPreference(),
   logs: [] as GameLog[],
   winner: null as 'player' | 'dealer' | null,
 };
@@ -323,11 +341,13 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   resetGame: () => {
     const showTutorial = readTutorialPreference();
+    const itemEffectTipsEnabled = readItemEffectTipsPreference();
     const startRound = getStartRound(showTutorial);
     const config = ROUND_CONFIG[startRound];
     set({
       ...initialState,
       showTutorial,
+      itemEffectTipsEnabled,
       currentRound: startRound,
       playerHP: config.playerHP,
       playerMaxHP: config.playerHP,
@@ -357,6 +377,11 @@ export const useGameStore = create<GameState>((set, get) => ({
   setMusicVolume: (volume) => set({ musicVolume: volume }),
 
   setSfxVolume: (volume) => set({ sfxVolume: volume }),
+
+  setItemEffectTipsEnabled: (enabled) => {
+    writeItemEffectTipsPreference(enabled);
+    set({ itemEffectTipsEnabled: enabled });
+  },
 
   setWinner: (winner) => set({ winner }),
 
