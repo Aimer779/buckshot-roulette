@@ -111,6 +111,7 @@ export default function GameplayScreen() {
   const animLockRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const initializedRoundRef = useRef<number | null>(null);
+  const pendingRoundEndRef = useRef<'won' | 'lost' | null>(null);
 
   // ── Toast helpers ──
   const pushToast = useCallback(
@@ -183,25 +184,19 @@ export default function GameplayScreen() {
     if (result === 'continue') return;
 
     if (result === 'round-won') {
+      pendingRoundEndRef.current = 'won';
       setPhase('ROUND_END');
       pushToast(`第 ${currentRound} 回合胜利！进入下一回合`, 'heal');
       addLog(`第 ${currentRound} 回合结束，进入下一回合`, 'system');
-      // Short delay so the player sees the round result before resetting
-      const timer = setTimeout(() => {
-        nextRound();
-      }, 1500);
-      return () => clearTimeout(timer);
+      return;
     }
 
     if (result === 'round-lost') {
+      pendingRoundEndRef.current = 'lost';
       setPhase('ROUND_END');
       pushToast(`第 ${currentRound} 回合失败…复活后重试本回合`, 'damage');
       addLog(`第 ${currentRound} 回合结束，复活后重试`, 'system');
-      const timer = setTimeout(() => {
-        initializedRoundRef.current = null;
-        retryRound();
-      }, 1500);
-      return () => clearTimeout(timer);
+      return;
     }
 
     // Game over
@@ -224,10 +219,26 @@ export default function GameplayScreen() {
     setPhase,
     pushToast,
     addLog,
-    nextRound,
-    retryRound,
     navigate,
   ]);
+
+  // ── Round end transition (delayed next/retry) ──
+  useEffect(() => {
+    if (phase !== 'ROUND_END') return;
+    const transition = pendingRoundEndRef.current;
+    if (!transition) return;
+    pendingRoundEndRef.current = null;
+
+    const timer = setTimeout(() => {
+      if (transition === 'won') {
+        nextRound();
+      } else {
+        initializedRoundRef.current = null;
+        retryRound();
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [phase, nextRound, retryRound]);
 
   // ── Init round ──
   const initRound = useCallback(
