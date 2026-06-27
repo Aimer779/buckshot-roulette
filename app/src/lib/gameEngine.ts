@@ -290,21 +290,14 @@ export function checkGameOver(
   dealerHP: number,
   currentRound: number,
   maxRounds: number
-): 'player' | 'dealer' | 'next-round' | 'continue' {
+): 'player' | 'dealer' | 'round-won' | 'round-lost' | 'continue' {
   if (playerHP <= 0) {
-    // Player loses the round; if not the final round, the match continues
-    return currentRound >= maxRounds ? 'dealer' : 'next-round';
+    // Player loses the round; final round failure ends the game
+    return currentRound >= maxRounds ? 'dealer' : 'round-lost';
   }
   if (dealerHP <= 0) {
-    // Player wins the round; if not the final round, the match continues
-    return currentRound >= maxRounds ? 'player' : 'next-round';
-  }
-  if (currentRound >= maxRounds) {
-    // Final round timed out - compare HP
-    if (playerHP > dealerHP) return 'player';
-    if (dealerHP > playerHP) return 'dealer';
-    // Tie - player wins by default
-    return 'player';
+    // Player wins the round; final round victory ends the game
+    return currentRound >= maxRounds ? 'player' : 'round-won';
   }
   return 'continue';
 }

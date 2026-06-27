@@ -85,6 +85,7 @@ export default function GameplayScreen() {
     addLog,
     setWinner,
     nextRound,
+    retryRound,
   } = useGameStore();
 
   // ── Local UI state ──
@@ -109,6 +110,7 @@ export default function GameplayScreen() {
 
   const animLockRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const initializedRoundRef = useRef<number | null>(null);
 
   // ── Toast helpers ──
   const pushToast = useCallback(
@@ -176,22 +178,28 @@ export default function GameplayScreen() {
 
   // ── Check game over / round advance ──
   useEffect(() => {
-    if (phase === 'GAME_OVER') return;
+    if (phase === 'GAME_OVER' || phase === 'ROUND_END' || phase === 'ROUND_START') return;
     const result = checkGameOver(playerHP, dealerHP, currentRound, maxRounds);
     if (result === 'continue') return;
 
-    if (result === 'next-round') {
-      const roundWinner = playerHP > 0 ? 'player' : 'dealer';
-      pushToast(
-        roundWinner === 'player'
-          ? `第 ${currentRound} 回合胜利！进入下一回合`
-          : `第 ${currentRound} 回合失败…进入下一回合`,
-        roundWinner === 'player' ? 'heal' : 'damage'
-      );
+    if (result === 'round-won') {
+      setPhase('ROUND_END');
+      pushToast(`第 ${currentRound} 回合胜利！进入下一回合`, 'heal');
       addLog(`第 ${currentRound} 回合结束，进入下一回合`, 'system');
       // Short delay so the player sees the round result before resetting
       const timer = setTimeout(() => {
         nextRound();
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+
+    if (result === 'round-lost') {
+      setPhase('ROUND_END');
+      pushToast(`第 ${currentRound} 回合失败…复活后重试本回合`, 'damage');
+      addLog(`第 ${currentRound} 回合结束，复活后重试`, 'system');
+      const timer = setTimeout(() => {
+        initializedRoundRef.current = null;
+        retryRound();
       }, 1500);
       return () => clearTimeout(timer);
     }
@@ -217,6 +225,7 @@ export default function GameplayScreen() {
     pushToast,
     addLog,
     nextRound,
+    retryRound,
     navigate,
   ]);
 
@@ -228,6 +237,7 @@ export default function GameplayScreen() {
       const newShells = loadShells(round);
       const items = distributeItems(round);
 
+      initializedRoundRef.current = round;
       storeLoadShells(newShells);
       useGameStore.setState({ playerItems: [], dealerItems: [] });
       items.player.forEach((item) => addItem('player', item));
@@ -265,6 +275,13 @@ export default function GameplayScreen() {
       pushToast,
     ]
   );
+
+  // ── Initialize rounds after nextRound() advances state ──
+  useEffect(() => {
+    if (!isInitialized || phase !== 'ROUND_START') return;
+    if (initializedRoundRef.current === currentRound) return;
+    initRound(false);
+  }, [isInitialized, phase, currentRound, initRound]);
 
   // ── Shell reload (when empty) ──
   const reloadIfEmpty = useCallback(() => {

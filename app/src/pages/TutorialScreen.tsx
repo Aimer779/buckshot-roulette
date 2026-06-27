@@ -200,7 +200,7 @@ const itemCardVariants = {
 
 export default function TutorialScreen() {
   const navigate = useNavigate();
-  const setShowTutorial = useGameStore((s) => s.setShowTutorial);
+  const { setShowTutorial, resetGame } = useGameStore();
 
   const [currentPage, setCurrentPage] = useState(0);
   const [direction, setDirection] = useState(0);
@@ -250,14 +250,16 @@ export default function TutorialScreen() {
   const handleStart = useCallback(() => {
     playSFX('shotgun-pump');
     setShowTutorial(false);
+    resetGame();
     navigate('/play');
-  }, [navigate, setShowTutorial]);
+  }, [navigate, resetGame, setShowTutorial]);
 
   const handleSkip = useCallback(() => {
     playSFX('shotgun-click', 0.3);
     setShowTutorial(false);
+    resetGame();
     navigate('/play');
-  }, [navigate, setShowTutorial]);
+  }, [navigate, resetGame, setShowTutorial]);
 
   const pageTitles = [
     '欢迎来到地下夜总会',

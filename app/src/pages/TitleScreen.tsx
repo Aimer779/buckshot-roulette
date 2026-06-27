@@ -112,7 +112,18 @@ interface SettingsPanelProps {
 }
 
 function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
-  const { soundEnabled, setSoundEnabled, crtEnabled, setCrtEnabled, musicVolume, setMusicVolume, sfxVolume, setSfxVolume } = useGameStore();
+  const {
+    soundEnabled,
+    setSoundEnabled,
+    crtEnabled,
+    setCrtEnabled,
+    musicVolume,
+    setMusicVolume,
+    sfxVolume,
+    setSfxVolume,
+    showTutorial,
+    setShowTutorial,
+  } = useGameStore();
 
   return (
     <AnimatePresence>
@@ -197,6 +208,30 @@ function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
               </button>
             </div>
 
+            {/* Tutorial round toggle */}
+            <div className="flex items-center justify-between">
+              <span className="font-chinese text-base" style={{ color: 'var(--text-primary)' }}>
+                跳过教学回合
+              </span>
+              <button
+                onClick={() => {
+                  setShowTutorial(!showTutorial);
+                  playSFX('shotgun-click', 0.3);
+                }}
+                className={`
+                  relative w-12 h-6 rounded-full transition-colors duration-200
+                  ${!showTutorial ? 'bg-accent-red' : 'bg-bg-elevated'}
+                `}
+              >
+                <div
+                  className={`
+                    absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform duration-200
+                    ${!showTutorial ? 'translate-x-6' : 'translate-x-0.5'}
+                  `}
+                />
+              </button>
+            </div>
+
             {/* Music volume */}
             <div className="flex flex-col gap-2">
               <span className="font-chinese text-base" style={{ color: 'var(--text-primary)' }}>
@@ -250,6 +285,7 @@ export default function TitleScreen() {
   const navigate = useNavigate();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [entered, setEntered] = useState(false);
+  const resetGame = useGameStore((s) => s.resetGame);
 
   // Start BGM on mount
   useEffect(() => {
@@ -268,6 +304,7 @@ export default function TitleScreen() {
 
       if (e.key === 'Enter' || e.key === ' ') {
         playSFX('shotgun-pump');
+        resetGame();
         navigate('/play');
       } else if (e.key === 'h' || e.key === 'H') {
         navigate('/tutorial');
@@ -278,12 +315,13 @@ export default function TitleScreen() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [navigate, settingsOpen]);
+  }, [navigate, resetGame, settingsOpen]);
 
   const handleStartGame = useCallback(() => {
     playSFX('shotgun-pump');
+    resetGame();
     navigate('/play');
-  }, [navigate]);
+  }, [navigate, resetGame]);
 
   const handleTutorial = useCallback(() => {
     playSFX('shotgun-click', 0.5);

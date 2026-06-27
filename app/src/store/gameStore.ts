@@ -96,6 +96,7 @@ export interface GameState {
   setGuillotineTriggered: (triggered: boolean) => void;
   setSkipDealerTurn: (skip: boolean) => void;
   nextRound: () => void;
+  retryRound: () => void;
   resetGame: () => void;
   addLog: (message: string, type: GameLog['type']) => void;
   clearLogs: () => void;
@@ -128,6 +129,24 @@ export const makeItem = (type: ItemType): Item => ({
   type,
   id: `item-${++itemIdCounter}-${Math.random().toString(36).slice(2, 6)}`,
 });
+
+const TUTORIAL_ROUND_COMPLETED_KEY = 'buckshot-roulette:tutorial-round-completed';
+
+const readTutorialPreference = () => {
+  if (typeof window === 'undefined') return true;
+  return window.localStorage.getItem(TUTORIAL_ROUND_COMPLETED_KEY) !== 'true';
+};
+
+const writeTutorialPreference = (showTutorial: boolean) => {
+  if (typeof window === 'undefined') return;
+  if (showTutorial) {
+    window.localStorage.removeItem(TUTORIAL_ROUND_COMPLETED_KEY);
+  } else {
+    window.localStorage.setItem(TUTORIAL_ROUND_COMPLETED_KEY, 'true');
+  }
+};
+
+const getStartRound = (showTutorial: boolean) => (showTutorial ? 1 : 2);
 
 // ─── Item Info ───────────────────────────────────────────
 
@@ -169,7 +188,7 @@ const initialState = {
   sawActive: false,
   guillotineTriggered: false,
   skipDealerTurn: false,
-  showTutorial: true,
+  showTutorial: readTutorialPreference(),
   soundEnabled: true,
   crtEnabled: true,
   musicVolume: 0.7,
@@ -265,6 +284,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({ phase: 'GAME_OVER', winner });
     } else {
       const config = ROUND_CONFIG[next] || ROUND_CONFIG[3];
+      if (s.currentRound === 1) {
+        writeTutorialPreference(false);
+      }
       set({
         currentRound: next,
         playerHP: config.playerHP,
@@ -280,10 +302,33 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
   },
 
+  retryRound: () => {
+    const s = get();
+    const config = ROUND_CONFIG[s.currentRound] || ROUND_CONFIG[3];
+    set({
+      playerHP: config.playerHP,
+      playerMaxHP: config.playerHP,
+      dealerHP: config.dealerHP,
+      dealerMaxHP: config.dealerHP,
+      shells: [],
+      currentShellIndex: 0,
+      playerItems: [],
+      dealerItems: [],
+      sawActive: false,
+      skipDealerTurn: false,
+      guillotineTriggered: false,
+      phase: 'ROUND_START',
+    });
+  },
+
   resetGame: () => {
-    const config = ROUND_CONFIG[1];
+    const showTutorial = readTutorialPreference();
+    const startRound = getStartRound(showTutorial);
+    const config = ROUND_CONFIG[startRound];
     set({
       ...initialState,
+      showTutorial,
+      currentRound: startRound,
       playerHP: config.playerHP,
       playerMaxHP: config.playerHP,
       dealerHP: config.dealerHP,
@@ -300,7 +345,10 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   clearLogs: () => set({ logs: [] }),
 
-  setShowTutorial: (show) => set({ showTutorial: show }),
+  setShowTutorial: (show) => {
+    writeTutorialPreference(show);
+    set({ showTutorial: show });
+  },
 
   setSoundEnabled: (enabled) => set({ soundEnabled: enabled }),
 
