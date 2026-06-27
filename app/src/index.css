@@ -1,0 +1,280 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* === Game Color Tokens === */
+    --bg-void: #0A0A0F;
+    --bg-dark: #14141B;
+    --bg-surface: #1E1E28;
+    --bg-elevated: #2A2A38;
+
+    --accent-red: #DC2626;
+    --accent-red-glow: #FF4444;
+    --accent-crimson: #8B1A1A;
+    --accent-blue: #3B82F6;
+    --accent-blue-dim: #1E3A5F;
+    --accent-gold: #D4A520;
+    --accent-amber: #F59E0B;
+
+    --text-primary: #E8E8EC;
+    --text-secondary: #9CA3AF;
+    --text-dim: #6B7280;
+    --text-inverse: #0A0A0F;
+
+    --neon-red: rgba(220, 38, 38, 0.6);
+    --neon-blue: rgba(59, 130, 246, 0.4);
+    --smoke-gray: rgba(100, 100, 120, 0.3);
+    --blood-overlay: rgba(139, 26, 26, 0.4);
+
+    --hp-full: #10B981;
+    --hp-mid: #F59E0B;
+    --hp-low: #DC2626;
+    --hp-dead: #3B1A1A;
+
+    /* === Shadcn compatibility === */
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+    --radius: 0.625rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    background-color: var(--bg-void);
+    color: var(--text-primary);
+    font-family: 'Noto Sans SC', sans-serif;
+    overflow: hidden;
+    min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Font utilities */
+  .font-pixel {
+    font-family: 'VT323', monospace;
+  }
+
+  .font-chinese {
+    font-family: 'Noto Sans SC', sans-serif;
+  }
+
+  .font-mono-data {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* === CRT Scanline Overlay === */
+@layer components {
+  .crt-overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0) 0px,
+      rgba(0, 0, 0, 0) 2px,
+      rgba(0, 0, 0, 0.03) 2px,
+      rgba(0, 0, 0, 0.03) 4px
+    );
+    mix-blend-mode: overlay;
+  }
+
+  /* Vignette effect */
+  .vignette {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9998;
+    background: radial-gradient(circle, transparent 40%, rgba(0, 0, 0, 0.8) 100%);
+  }
+
+  /* Blood overlay for damage */
+  .blood-overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9997;
+    background: radial-gradient(ellipse at center, transparent 30%, var(--blood-overlay) 100%);
+    opacity: 0;
+    transition: opacity 0.5s ease;
+  }
+
+  .blood-overlay.active {
+    opacity: 1;
+  }
+
+  /* Screen shake */
+  .screen-shake {
+    animation: shake 0.3s ease-in-out;
+  }
+
+  /* Dust particle */
+  .dust-particle {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(150, 150, 160, 0.4);
+    pointer-events: none;
+    animation: float-up linear infinite;
+  }
+
+  @keyframes float-up {
+    0% {
+      transform: translateY(100vh) translateX(0);
+      opacity: 0;
+    }
+    10% {
+      opacity: 0.6;
+    }
+    90% {
+      opacity: 0.6;
+    }
+    100% {
+      transform: translateY(-10vh) translateX(var(--drift, 20px));
+      opacity: 0;
+    }
+  }
+
+  /* Primary button style */
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent-red) 0%, var(--accent-crimson) 100%);
+    color: var(--text-primary);
+    font-family: 'Noto Sans SC', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    padding: 16px 48px;
+    border-radius: 999px;
+    border: 2px solid rgba(255, 68, 68, 0.5);
+    box-shadow: 0 0 30px rgba(220, 38, 38, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    text-align: center;
+    min-width: 280px;
+    height: 56px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .btn-primary:hover {
+    filter: brightness(1.15);
+    box-shadow: 0 0 50px rgba(220, 38, 38, 0.6);
+    transform: scale(1.05);
+  }
+
+  .btn-primary:active {
+    transform: scale(0.98);
+  }
+
+  /* Secondary button style */
+  .btn-secondary {
+    background: transparent;
+    color: var(--text-primary);
+    font-family: 'Noto Sans SC', sans-serif;
+    font-weight: 500;
+    font-size: 18px;
+    padding: 12px 32px;
+    border-radius: 999px;
+    border: 1px solid var(--text-dim);
+    transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    text-align: center;
+    min-width: 280px;
+    height: 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .btn-secondary:hover {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .btn-secondary:active {
+    transform: scale(0.98);
+  }
+
+  /* Light sweep effect on hover */
+  .light-sweep {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .light-sweep::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.15),
+      transparent
+    );
+    transition: left 300ms ease;
+  }
+
+  .light-sweep:hover::after {
+    left: 100%;
+  }
+
+  /* Neon text glow */
+  .neon-glow-red {
+    text-shadow:
+      0 0 10px var(--accent-red),
+      0 0 20px var(--accent-red),
+      0 0 40px var(--accent-red-glow);
+  }
+
+  /* Title blood drip effect */
+  .blood-drip {
+    text-shadow:
+      0 0 40px rgba(220, 38, 38, 0.5),
+      0 2px 4px rgba(0, 0, 0, 0.8);
+    position: relative;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-void);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-elevated);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-dim);
+}
