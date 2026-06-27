@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Volume2, VolumeX, X, Settings, HelpCircle, Play } from 'lucide-react';
+import { Volume2, VolumeX, X, Settings, HelpCircle, Play, Check } from 'lucide-react';
 import { useGameStore } from '@/store/gameStore';
 import { playSFX, playBGM } from '@/lib/sound';
 
@@ -111,6 +111,41 @@ interface SettingsPanelProps {
   onClose: () => void;
 }
 
+interface SwitchProps {
+  checked: boolean;
+  onChange: () => void;
+}
+
+function Switch({ checked, onChange }: SwitchProps) {
+  return (
+    <button
+      onClick={onChange}
+      className={`
+        relative rounded-full transition-colors duration-200
+        ${checked ? 'bg-accent-red' : 'bg-bg-elevated border border-white/20'}
+      `}
+      style={{
+        width: '3.5rem',
+        height: '1.75rem',
+        boxShadow: checked ? '0 0 10px rgba(220, 38, 38, 0.6)' : undefined,
+      }}
+    >
+      <div
+        className={`
+          absolute top-0.5 h-6 w-6 rounded-full bg-white flex items-center justify-center transition-transform duration-200
+          ${checked ? 'translate-x-7' : 'translate-x-0.5'}
+        `}
+      >
+        {checked ? (
+          <Check className="w-3.5 h-3.5" style={{ color: 'var(--accent-red)' }} />
+        ) : (
+          <X className="w-3.5 h-3.5" style={{ color: 'var(--text-dim)' }} />
+        )}
+      </div>
+    </button>
+  );
+}
+
 function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const {
     soundEnabled,
@@ -191,23 +226,13 @@ function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
               <span className="font-chinese text-base" style={{ color: 'var(--text-primary)' }}>
                 CRT 扫描线效果
               </span>
-              <button
-                onClick={() => {
+              <Switch
+                checked={crtEnabled}
+                onChange={() => {
                   setCrtEnabled(!crtEnabled);
                   playSFX('shotgun-click', 0.3);
                 }}
-                className={`
-                  relative w-12 h-6 rounded-full transition-colors duration-200
-                  ${crtEnabled ? 'bg-accent-red' : 'bg-bg-elevated'}
-                `}
-              >
-                <div
-                  className={`
-                    absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform duration-200
-                    ${crtEnabled ? 'translate-x-6' : 'translate-x-0.5'}
-                  `}
-                />
-              </button>
+              />
             </div>
 
             {/* Tutorial round toggle */}
@@ -215,23 +240,13 @@ function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
               <span className="font-chinese text-base" style={{ color: 'var(--text-primary)' }}>
                 跳过教学回合
               </span>
-              <button
-                onClick={() => {
+              <Switch
+                checked={!showTutorial}
+                onChange={() => {
                   setShowTutorial(!showTutorial);
                   playSFX('shotgun-click', 0.3);
                 }}
-                className={`
-                  relative w-12 h-6 rounded-full transition-colors duration-200
-                  ${!showTutorial ? 'bg-accent-red' : 'bg-bg-elevated'}
-                `}
-              >
-                <div
-                  className={`
-                    absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform duration-200
-                    ${!showTutorial ? 'translate-x-6' : 'translate-x-0.5'}
-                  `}
-                />
-              </button>
+              />
             </div>
 
             {/* Item effect tips toggle */}
@@ -239,23 +254,13 @@ function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
               <span className="font-chinese text-base" style={{ color: 'var(--text-primary)' }}>
                 装备效果提示
               </span>
-              <button
-                onClick={() => {
+              <Switch
+                checked={itemEffectTipsEnabled}
+                onChange={() => {
                   setItemEffectTipsEnabled(!itemEffectTipsEnabled);
                   playSFX('shotgun-click', 0.3);
                 }}
-                className={`
-                  relative w-12 h-6 rounded-full transition-colors duration-200
-                  ${itemEffectTipsEnabled ? 'bg-accent-red' : 'bg-bg-elevated'}
-                `}
-              >
-                <div
-                  className={`
-                    absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform duration-200
-                    ${itemEffectTipsEnabled ? 'translate-x-6' : 'translate-x-0.5'}
-                  `}
-                />
-              </button>
+              />
             </div>
 
             {/* Music volume */}
