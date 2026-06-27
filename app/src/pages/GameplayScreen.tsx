@@ -84,6 +84,7 @@ export default function GameplayScreen() {
     revealShell,
     addLog,
     setWinner,
+    nextRound,
   } = useGameStore();
 
   // ── Local UI state ──
@@ -173,21 +174,38 @@ export default function GameplayScreen() {
     }
   }, [playerHP, dealerHP, currentRound, guillotineTriggered]);
 
-  // ── Check game over ──
+  // ── Check game over / round advance ──
   useEffect(() => {
     if (phase === 'GAME_OVER') return;
     const result = checkGameOver(playerHP, dealerHP, currentRound, maxRounds);
-    if (result !== 'continue') {
-      setWinner(result);
-      setPhase('GAME_OVER');
+    if (result === 'continue') return;
+
+    if (result === 'next-round') {
+      const roundWinner = playerHP > 0 ? 'player' : 'dealer';
       pushToast(
-        result === 'player' ? '恭喜！你赢得了游戏！' : '游戏结束...',
-        result === 'player' ? 'heal' : 'damage'
+        roundWinner === 'player'
+          ? `第 ${currentRound} 回合胜利！进入下一回合`
+          : `第 ${currentRound} 回合失败…进入下一回合`,
+        roundWinner === 'player' ? 'heal' : 'damage'
       );
-      setTimeout(() => {
-        navigate('/gameover');
-      }, 2500);
+      addLog(`第 ${currentRound} 回合结束，进入下一回合`, 'system');
+      // Short delay so the player sees the round result before resetting
+      const timer = setTimeout(() => {
+        nextRound();
+      }, 1500);
+      return () => clearTimeout(timer);
     }
+
+    // Game over
+    setWinner(result);
+    setPhase('GAME_OVER');
+    pushToast(
+      result === 'player' ? '恭喜！你赢得了游戏！' : '游戏结束...',
+      result === 'player' ? 'heal' : 'damage'
+    );
+    setTimeout(() => {
+      navigate('/gameover');
+    }, 2500);
   }, [
     playerHP,
     dealerHP,
@@ -197,6 +215,8 @@ export default function GameplayScreen() {
     setWinner,
     setPhase,
     pushToast,
+    addLog,
+    nextRound,
     navigate,
   ]);
 

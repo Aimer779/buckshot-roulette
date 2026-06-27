@@ -282,13 +282,25 @@ export function resolveItemUse(itemType: ItemType, context: {
 // ─── Round helpers ───────────────────────────────────────
 
 /**
- * Check if the game should end
+ * Check if the game should end or advance to the next round.
+ * In rounds 1 and 2, reducing the opponent to 0 HP wins the round, not the match.
  */
-export function checkGameOver(playerHP: number, dealerHP: number, currentRound: number, maxRounds: number): 'player' | 'dealer' | 'continue' {
-  if (playerHP <= 0) return 'dealer';
-  if (dealerHP <= 0) return 'player';
+export function checkGameOver(
+  playerHP: number,
+  dealerHP: number,
+  currentRound: number,
+  maxRounds: number
+): 'player' | 'dealer' | 'next-round' | 'continue' {
+  if (playerHP <= 0) {
+    // Player loses the round; if not the final round, the match continues
+    return currentRound >= maxRounds ? 'dealer' : 'next-round';
+  }
+  if (dealerHP <= 0) {
+    // Player wins the round; if not the final round, the match continues
+    return currentRound >= maxRounds ? 'player' : 'next-round';
+  }
   if (currentRound >= maxRounds) {
-    // Compare HP on final round
+    // Final round timed out - compare HP
     if (playerHP > dealerHP) return 'player';
     if (dealerHP > playerHP) return 'dealer';
     // Tie - player wins by default
