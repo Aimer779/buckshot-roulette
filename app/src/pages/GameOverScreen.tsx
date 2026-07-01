@@ -294,8 +294,12 @@ function StatItem({ label, value, color, delay }: StatItemProps) {
 
 export default function GameOverScreen() {
   const navigate = useNavigate();
-  const winner = useGameStore((s) => s.winner);
-  const isWin = winner === 'player';
+  // Snapshot the outcome at mount. Do NOT subscribe to `winner`: the
+  // "Return to Main Menu" / "Replay" handlers call resetGame() (which sets
+  // winner = null) and only navigate away after a setTimeout. A live
+  // subscription would re-render this screen with winner === null during that
+  // window, flipping a victory into the defeat ("YOU DIED") screen.
+  const isWin = useMemo(() => useGameStore.getState().winner === 'player', []);
 
   const stats = useMemo(() => deriveStats(), []);
   const particleCanvasRef = useRef<HTMLCanvasElement>(null);
