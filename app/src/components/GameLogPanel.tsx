@@ -107,8 +107,8 @@ export default function GameLogPanel() {
 
   return (
     <>
-      {/* ─── Wide screen: left docked panel ─── */}
-      <div className="hidden md:flex h-full shrink-0 transition-all duration-300 ease-out">
+      {/* ─── Wide screen: left floating drawer overlay ─── */}
+      <div className="hidden md:flex absolute left-0 top-0 bottom-0 z-20">
         <AnimatePresence initial={false} mode="popLayout">
           {!collapsed && (
             <motion.div

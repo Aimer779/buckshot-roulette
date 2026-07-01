@@ -207,9 +207,6 @@ export default function GameplayScreen() {
       result === 'player' ? '恭喜！你赢得了游戏！' : '游戏结束...',
       result === 'player' ? 'heal' : 'damage'
     );
-    setTimeout(() => {
-      navigate('/gameover');
-    }, 2500);
   }, [
     playerHP,
     dealerHP,
@@ -220,8 +217,20 @@ export default function GameplayScreen() {
     setPhase,
     pushToast,
     addLog,
-    navigate,
   ]);
+
+  // ── Delayed navigation to game over screen ──
+  // Split from the detection effect above so the timer can be cleaned up if
+  // the player leaves (e.g. "返回主菜单") before it fires. Otherwise the
+  // pending navigate('/gameover') would run after resetGame() cleared the
+  // winner, landing on a misleading defeat screen.
+  useEffect(() => {
+    if (phase !== 'GAME_OVER') return;
+    const timer = setTimeout(() => {
+      navigate('/gameover');
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [phase, navigate]);
 
   // ── Round end transition (delayed next/retry) ──
   useEffect(() => {
@@ -1031,7 +1040,7 @@ export default function GameplayScreen() {
         </div>
 
         {/* ═══ Game Log + Main Game Area ═══ */}
-        <div className="flex-1 flex overflow-hidden">
+        <div className="relative flex-1 flex overflow-hidden">
           <GameLogPanel />
 
           {/* ═══ Main Game Area ═══ */}
