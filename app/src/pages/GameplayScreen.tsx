@@ -8,6 +8,8 @@ import {
   dealerDecision,
   checkGameOver,
 } from '@/lib/gameEngine';
+import { countShells, getReloadReason, getRemainingShells } from '@/lib/shellFlow';
+import { resolveShotOutcome, type ShotOutcome } from '@/lib/shotResolution';
 import { playSFX, playBGM } from '@/lib/sound';
 import GameLogPanel from '@/components/GameLogPanel';
 import GameplayHud from '@/components/gameplay/GameplayHud';
@@ -19,6 +21,7 @@ import {
   useGameplayEffects,
   ITEM_EFFECT_DURATION,
 } from '@/hooks/useGameplayEffects';
+import { useShootSequence } from '@/hooks/useShootSequence';
 import type { Item } from '@/store/gameStore';
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -91,14 +94,24 @@ export default function GameplayScreen() {
   // ── Local UI state (lifecycle / turn-driven, not short animations) ──
   const [roundAnnounce, setRoundAnnounce] = useState(false);
   const [dealerThinking, setDealerThinking] = useState(false);
-  const [shootingAnim, setShootingAnim] = useState<'self' | 'dealer' | null>(null);
   const [showGuillotineWarning, setShowGuillotineWarning] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  const animLockRef = useRef(false);
   const initializedRoundRef = useRef<number | null>(null);
   const pendingRoundEndRef = useRef<'won' | 'lost' | null>(null);
+
+  const {
+    isAnimatingRef,
+    isAnimating,
+    shootingAnim,
+    shoot,
+  } = useShootSequence({
+    setPhase,
+    triggerShake,
+    triggerMuzzleFlash,
+    showShellEject,
+  });
 
   // ── Initialize game ──
   useEffect(() => {
@@ -215,8 +228,7 @@ export default function GameplayScreen() {
       setPhase('ROUND_START');
       addLog(`第 ${round} 回合开始`, 'system');
 
-      const liveC = newShells.filter((sh) => sh.type === 'live').length;
-      const blankC = newShells.filter((sh) => sh.type === 'blank').length;
+      const { live: liveC, blank: blankC } = countShells(newShells);
       pushToast(`第 ${round} 回合开始 · 实弹 ${liveC} 发 | 空包弹 ${blankC} 发`, 'system');
 
       // Round announcement animation
@@ -256,8 +268,7 @@ export default function GameplayScreen() {
       const s = useGameStore.getState();
       const newShells = loadShells(s.currentRound);
       storeLoadShells(newShells);
-      const liveC = newShells.filter((sh) => sh.type === 'live').length;
-      const blankC = newShells.filter((sh) => sh.type === 'blank').length;
+      const { live: liveC, blank: blankC } = countShells(newShells);
       const message =
         reason === 'empty'
           ? '子弹已耗尽，重新装填'
@@ -272,122 +283,47 @@ export default function GameplayScreen() {
     reason: 'empty' | 'no-live' | null;
   } => {
     const s = useGameStore.getState();
-    const remaining = s.shells.slice(s.currentShellIndex);
-    if (remaining.length === 0) {
-      reloadShells('empty');
-      return { reloaded: true, reason: 'empty' };
-    }
-    if (remaining.every((sh) => sh.type === 'blank')) {
-      reloadShells('no-live');
-      return { reloaded: true, reason: 'no-live' };
-    }
-    return { reloaded: false, reason: null };
+    const reason = getReloadReason(s.shells, s.currentShellIndex);
+    if (!reason) return { reloaded: false, reason: null };
+
+    reloadShells(reason);
+    return { reloaded: true, reason };
   }, [reloadShells]);
 
-  // ── Shooting animation sequence ──
-  const playShootSequence = useCallback(
-    (
-      target: 'self' | 'dealer',
-      onComplete: (shellType: 'live' | 'blank') => void
-    ) => {
-      if (animLockRef.current) return;
-      animLockRef.current = true;
-
-      const s = useGameStore.getState();
-      const shell = s.useCurrentShell();
-      if (!shell) {
-        animLockRef.current = false;
-        onComplete('blank');
-        return;
+  const applyShotOutcome = useCallback(
+    (outcome: ShotOutcome) => {
+      if (outcome.hit && outcome.damageTarget) {
+        if (outcome.damageTarget === 'player') {
+          triggerBloodFlash();
+        }
+        damage(outcome.damageTarget, outcome.damage);
+        playSFX('damage');
+        showDamageText(`-${outcome.damage}`, outcome.damageTarget);
       }
 
-      setPhase('ANIMATING');
-      setShootingAnim(target);
-
-      // Step 1: Aim (200ms)
-      playSFX('shotgun-pump');
-
-      setTimeout(() => {
-        // Step 2: Fire (500ms mark)
-        triggerShake();
-        triggerMuzzleFlash();
-
-        if (shell.type === 'live') {
-          playSFX('shotgun-fire');
-        } else {
-          playSFX('shotgun-click');
-        }
-
-        // Step 3: Shell eject (500ms mark)
-        playSFX('shell-eject');
-        showShellEject(shell.type);
-
-        // Step 4: Result
-        setTimeout(() => {
-          setShootingAnim(null);
-          animLockRef.current = false;
-          onComplete(shell.type);
-        }, 600);
-      }, 400);
+      if (outcome.sawConsumed) {
+        setSawActive(false);
+      }
     },
-    [setPhase, triggerShake, triggerMuzzleFlash, showShellEject]
+    [damage, setSawActive, showDamageText, triggerBloodFlash]
   );
 
   // ── Handle shoot self ──
-  const handleShootSelf = useCallback(() => {
-    if (phase !== 'PLAYER_TURN' || animLockRef.current) return;
+  const handleShootSelf = useCallback(async () => {
+    if (phase !== 'PLAYER_TURN' || isAnimatingRef.current) return;
 
-    playShootSequence('self', (shellType) => {
-      if (shellType === 'live') {
-        const dmg = sawActive ? 2 : 1;
-        triggerBloodFlash();
-        damage('player', dmg);
-        playSFX('damage');
-        showDamageText(`-${dmg}`, 'player');
-        setSawActive(false);
+    const shellType = await shoot('self');
+    if (!shellType) return;
 
-        setTimeout(() => {
-          const ns = useGameStore.getState();
-          if (ns.playerHP > 0 && ns.dealerHP > 0) {
-            if (reloadIfEmptyOrAllBlank().reloaded) {
-              setTimeout(() => setPhase('DEALER_TURN'), 500);
-            } else {
-              setPhase('DEALER_TURN');
-            }
-          }
-        }, 1200);
-      } else {
-        setTimeout(() => {
-          reloadIfEmptyOrAllBlank();
-          setPhase('PLAYER_TURN');
-        }, 600);
-      }
+    const outcome = resolveShotOutcome({
+      actor: 'player',
+      target: 'player',
+      shellType,
+      sawActive: useGameStore.getState().sawActive,
     });
-  }, [
-    phase,
-    sawActive,
-    playShootSequence,
-    damage,
-    setSawActive,
-    triggerBloodFlash,
-    showDamageText,
-    reloadIfEmptyOrAllBlank,
-    setPhase,
-  ]);
+    applyShotOutcome(outcome);
 
-  // ── Handle shoot dealer ──
-  const handleShootDealer = useCallback(() => {
-    if (phase !== 'PLAYER_TURN' || animLockRef.current) return;
-
-    playShootSequence('dealer', (shellType) => {
-      if (shellType === 'live') {
-        const dmg = sawActive ? 2 : 1;
-        damage('dealer', dmg);
-        playSFX('damage');
-        showDamageText(`-${dmg}`, 'dealer');
-        setSawActive(false);
-      }
-
+    if (outcome.hit) {
       setTimeout(() => {
         const ns = useGameStore.getState();
         if (ns.playerHP > 0 && ns.dealerHP > 0) {
@@ -398,14 +334,51 @@ export default function GameplayScreen() {
           }
         }
       }, 1200);
-    });
+      return;
+    }
+
+    setTimeout(() => {
+      reloadIfEmptyOrAllBlank();
+      setPhase('PLAYER_TURN');
+    }, 600);
   }, [
     phase,
-    sawActive,
-    playShootSequence,
-    damage,
-    setSawActive,
-    showDamageText,
+    isAnimatingRef,
+    shoot,
+    applyShotOutcome,
+    reloadIfEmptyOrAllBlank,
+    setPhase,
+  ]);
+
+  // ── Handle shoot dealer ──
+  const handleShootDealer = useCallback(async () => {
+    if (phase !== 'PLAYER_TURN' || isAnimatingRef.current) return;
+
+    const shellType = await shoot('dealer');
+    if (!shellType) return;
+
+    applyShotOutcome(resolveShotOutcome({
+      actor: 'player',
+      target: 'dealer',
+      shellType,
+      sawActive: useGameStore.getState().sawActive,
+    }));
+
+    setTimeout(() => {
+      const ns = useGameStore.getState();
+      if (ns.playerHP > 0 && ns.dealerHP > 0) {
+        if (reloadIfEmptyOrAllBlank().reloaded) {
+          setTimeout(() => setPhase('DEALER_TURN'), 500);
+        } else {
+          setPhase('DEALER_TURN');
+        }
+      }
+    }, 1200);
+  }, [
+    phase,
+    isAnimatingRef,
+    shoot,
+    applyShotOutcome,
     reloadIfEmptyOrAllBlank,
     setPhase,
   ]);
@@ -442,9 +415,8 @@ export default function GameplayScreen() {
       setDealerThinking(true);
       addLog('庄家思考中...', 'info');
 
-      const remainingShells = s.shells.slice(s.currentShellIndex);
-      const liveCount = remainingShells.filter((sh) => sh.type === 'live').length;
-      const blankCount = remainingShells.filter((sh) => sh.type === 'blank').length;
+      const remainingShells = getRemainingShells(s.shells, s.currentShellIndex);
+      const { live: liveCount, blank: blankCount } = countShells(remainingShells);
 
       const decision = dealerDecision(
         s.dealerHP,
@@ -546,9 +518,9 @@ export default function GameplayScreen() {
   );
 
   // ── Execute dealer shoot ──
-  const executeDealerShoot = useCallback(() => {
+  const executeDealerShoot = useCallback(async () => {
     const s = useGameStore.getState();
-    const remainingShells = s.shells.slice(s.currentShellIndex);
+    const remainingShells = getRemainingShells(s.shells, s.currentShellIndex);
 
     // Defensive: skip an empty or all-blank magazine before the dealer acts
     if (reloadIfEmptyOrAllBlank().reloaded) {
@@ -559,95 +531,62 @@ export default function GameplayScreen() {
       return;
     }
 
-    const liveCount = remainingShells.filter((sh) => sh.type === 'live').length;
-    const blankCount = remainingShells.filter((sh) => sh.type === 'blank').length;
+    const { live: liveCount, blank: blankCount } = countShells(remainingShells);
 
     // Simple decision: if more blanks, shoot self; else shoot player
     const blankRatio = blankCount / (liveCount + blankCount);
     const shootSelf = blankRatio > 0.5;
 
-    playShootSequence(shootSelf ? 'self' : 'dealer', (shellType) => {
-      if (shootSelf) {
-        // Dealer shoots self
-        if (shellType === 'live') {
-          const dmg = s.sawActive ? 2 : 1;
-          damage('dealer', dmg);
-          playSFX('damage');
-          showDamageText(`-${dmg}`, 'dealer');
-          setSawActive(false);
+    const shellType = await shoot(shootSelf ? 'self' : 'dealer');
+    if (!shellType) return;
 
-          setTimeout(() => {
-            const ns = useGameStore.getState();
-            if (ns.dealerHP > 0 && ns.playerHP > 0) {
-              if (reloadIfEmptyOrAllBlank().reloaded) {
-                setTimeout(() => {
-                  setPhase('PLAYER_TURN');
-                  pushToast('你的回合', 'info');
-                }, 600);
-              } else {
-                setPhase('PLAYER_TURN');
-                pushToast('你的回合', 'info');
-              }
-            }
-          }, 1200);
-        } else {
-          setTimeout(() => {
-            // Dealer gets extra turn - recurse
-            const ns = useGameStore.getState();
-            if (ns.currentShellIndex >= ns.shells.length) {
-              // Magazine physically empty: reload and pass turn to player
-              reloadIfEmptyOrAllBlank();
-              setTimeout(() => {
-                setPhase('PLAYER_TURN');
-                pushToast('你的回合', 'info');
-              }, 600);
-            } else {
-              // If remaining shells are all blanks, reload and pass turn to player
-              if (reloadIfEmptyOrAllBlank().reloaded) {
-                setTimeout(() => {
-                  setPhase('PLAYER_TURN');
-                  pushToast('你的回合', 'info');
-                }, 600);
-              } else {
-                setPhase('DEALER_TURN');
-              }
-            }
-          }, 1000);
-        }
-      } else {
-        // Dealer shoots player
-        if (shellType === 'live') {
-          const dmg = s.sawActive ? 2 : 1;
-          triggerBloodFlash();
-          damage('player', dmg);
-          playSFX('damage');
-          showDamageText(`-${dmg}`, 'player');
-          setSawActive(false);
-        }
-
-        setTimeout(() => {
-          const ns = useGameStore.getState();
-          if (ns.dealerHP > 0 && ns.playerHP > 0) {
-            if (reloadIfEmptyOrAllBlank().reloaded) {
-              setTimeout(() => {
-                setPhase('PLAYER_TURN');
-                pushToast('你的回合', 'info');
-              }, 600);
-            } else {
-              setPhase('PLAYER_TURN');
-              pushToast('你的回合', 'info');
-            }
-          }
-        }, 1200);
-      }
+    const outcome = resolveShotOutcome({
+      actor: 'dealer',
+      target: shootSelf ? 'dealer' : 'player',
+      shellType,
+      sawActive: useGameStore.getState().sawActive,
     });
+    applyShotOutcome(outcome);
+
+    if (outcome.keepsTurn) {
+      setTimeout(() => {
+        const ns = useGameStore.getState();
+        if (ns.currentShellIndex >= ns.shells.length) {
+          reloadIfEmptyOrAllBlank();
+          setTimeout(() => {
+            setPhase('PLAYER_TURN');
+            pushToast('你的回合', 'info');
+          }, 600);
+        } else if (reloadIfEmptyOrAllBlank().reloaded) {
+          setTimeout(() => {
+            setPhase('PLAYER_TURN');
+            pushToast('你的回合', 'info');
+          }, 600);
+        } else {
+          setPhase('DEALER_TURN');
+        }
+      }, 1000);
+      return;
+    }
+
+    setTimeout(() => {
+      const ns = useGameStore.getState();
+      if (ns.dealerHP > 0 && ns.playerHP > 0) {
+        if (reloadIfEmptyOrAllBlank().reloaded) {
+          setTimeout(() => {
+            setPhase('PLAYER_TURN');
+            pushToast('你的回合', 'info');
+          }, 600);
+        } else {
+          setPhase('PLAYER_TURN');
+          pushToast('你的回合', 'info');
+        }
+      }
+    }, 1200);
   }, [
-    playShootSequence,
-    damage,
-    setSawActive,
+    shoot,
+    applyShotOutcome,
     pushToast,
-    triggerBloodFlash,
-    showDamageText,
     reloadIfEmptyOrAllBlank,
     setPhase,
   ]);
@@ -655,7 +594,7 @@ export default function GameplayScreen() {
   // ── Handle player item use ──
   const handleUseItem = useCallback(
     (item: Item) => {
-      if (phase !== 'PLAYER_TURN' || animLockRef.current) return;
+      if (phase !== 'PLAYER_TURN' || isAnimatingRef.current) return;
 
       const s = useGameStore.getState();
 
@@ -810,6 +749,7 @@ export default function GameplayScreen() {
     },
     [
       phase,
+      isAnimatingRef,
       playerHP,
       playerMaxHP,
       sawActive,
@@ -841,7 +781,7 @@ export default function GameplayScreen() {
 
   // ── Derived state ──
   const isPlayerTurn = phase === 'PLAYER_TURN';
-  const actionsEnabled = isPlayerTurn && !animLockRef.current && !roundAnnounce;
+  const actionsEnabled = isPlayerTurn && !isAnimating && !roundAnnounce;
   const roundLabel = ROUND_LABELS[currentRound] || ROUND_LABELS[3];
 
   // ─── Render ─────────────────────────────────────────────

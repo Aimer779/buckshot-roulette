@@ -229,17 +229,15 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   damage: (target, amount) => {
     const s = get();
-    const actualDamage = s.sawActive ? amount * 2 : amount;
     const newHP = Math.max(
       0,
-      (target === 'player' ? s.playerHP : s.dealerHP) - actualDamage
+      (target === 'player' ? s.playerHP : s.dealerHP) - amount
     );
     set({
       ...(target === 'player' ? { playerHP: newHP } : { dealerHP: newHP }),
-      sawActive: false,
     });
     get().addLog(
-      `${target === 'player' ? '玩家' : '庄家'}受到 ${actualDamage} 点伤害！`,
+      `${target === 'player' ? '玩家' : '庄家'}受到 ${amount} 点伤害！`,
       'damage'
     );
   },

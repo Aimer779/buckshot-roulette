@@ -1,5 +1,6 @@
 import type { Shell, Item, ItemType } from '@/store/gameStore';
 import { makeItem, ROUND_CONFIG } from '@/store/gameStore';
+import { countShells, getRemainingShells } from '@/lib/shellFlow';
 
 // ─── Shell Loading ───────────────────────────────────────
 
@@ -33,14 +34,14 @@ export function loadShells(round: number): Shell[] {
  * Get the count of live shells remaining (including unrevealed)
  */
 export function getLiveShellCount(shells: Shell[], fromIndex: number): number {
-  return shells.slice(fromIndex).filter((s) => s.type === 'live').length;
+  return countShells(getRemainingShells(shells, fromIndex)).live;
 }
 
 /**
  * Get the count of blank shells remaining (including unrevealed)
  */
 export function getBlankShellCount(shells: Shell[], fromIndex: number): number {
-  return shells.slice(fromIndex).filter((s) => s.type === 'blank').length;
+  return countShells(getRemainingShells(shells, fromIndex)).blank;
 }
 
 // ─── Damage Calculation ──────────────────────────────────
