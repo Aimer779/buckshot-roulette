@@ -79,8 +79,7 @@ export interface ItemEffectResult {
  * Pure item-effect rule executor. Returns null when the item cannot be used
  * (blocked, no-op, or invalid target). Does not touch store or React state.
  *
- * Replaces inline switch statements in GameplayScreen; wraps the intent of
- * gameEngine.resolveItemUse without adopting its narrower ItemEffect shape.
+ * Replaces the legacy inline switch statements in GameplayScreen.
  *
  * Dealer contract: cigarette/handsaw/handcuffs/beer/magnifier have real rules.
  * phone is selected by dealer AI but intentionally noop (consume + sfx only),
