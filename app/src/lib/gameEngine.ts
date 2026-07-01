@@ -112,7 +112,7 @@ export function dealerDecision(
   blankCount: number,
   shellsRemaining: number,
   dealerItems: Item[],
-  sawActive: boolean
+  dealerSawActive: boolean
 ): DealerDecision {
   const total = liveCount + blankCount;
   if (total === 0) {
@@ -148,7 +148,7 @@ export function dealerDecision(
   }
 
   // 4. Use handsaw if live ratio is high
-  if (!sawActive && liveRatio > 0.5) {
+  if (!dealerSawActive && liveRatio > 0.5) {
     const saw = dealerItems.find((i) => i.type === 'handsaw');
     if (saw) {
       return { action: 'use-item', itemId: saw.id, reasoning: 'High live ratio, prepare saw' };

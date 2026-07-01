@@ -43,7 +43,7 @@ export interface ItemEffectContext {
   shells: Shell[];
   currentShellIndex: number;
   currentShell: Shell | null;
-  sawActive: boolean;
+  actorSawActive: boolean;
   guillotineTriggered: boolean;
   opponentItems: Item[];
 }
@@ -60,7 +60,7 @@ export interface ItemEffectResult {
   shellUpdates?: Shell[];
   consumeCurrentShell?: boolean;
   revealedShellIndices?: number[];
-  sawActive?: boolean;
+  actorSawActive?: boolean;
   skipDealerTurn?: boolean;
   log?: {
     message: string;
@@ -116,10 +116,10 @@ export function executeItemEffect(ctx: ItemEffectContext): ItemEffectResult | nu
     }
 
     case 'handsaw': {
-      if (ctx.sawActive) return null;
+      if (ctx.actorSawActive) return null;
       return {
         consumedItemIds: [item.id],
-        sawActive: true,
+        actorSawActive: true,
         sfx: 'saw',
         uiEffect: actor === 'player' ? 'handsaw' : undefined,
         log: {

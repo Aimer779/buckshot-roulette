@@ -19,7 +19,7 @@ export function resolveShotOutcome(input: {
   actor: ShotActor;
   target: ShotTarget;
   shellType: ShellType;
-  sawActive: boolean;
+  actorSawActive: boolean;
 }): ShotOutcome {
   const hit = input.shellType === 'live';
 
@@ -29,10 +29,10 @@ export function resolveShotOutcome(input: {
     shellType: input.shellType,
     hit,
     damageTarget: hit ? input.target : null,
-    damage: hit ? calculateDamage(input.sawActive) : 0,
+    damage: hit ? calculateDamage(input.actorSawActive) : 0,
     keepsTurn:
       input.shellType === 'blank' &&
       input.actor === input.target,
-    sawConsumed: hit && input.sawActive,
+    sawConsumed: hit && input.actorSawActive,
   };
 }

@@ -67,7 +67,8 @@ export interface GameState {
   maxRounds: number;
 
   // Flags
-  sawActive: boolean;
+  playerSawActive: boolean;
+  dealerSawActive: boolean;
   guillotineTriggered: boolean;
   skipDealerTurn: boolean;
   showTutorial: boolean;
@@ -93,7 +94,8 @@ export interface GameState {
   useCurrentShell: () => Shell | null;
   addItem: (target: 'player' | 'dealer', item: Item) => void;
   removeItem: (target: 'player' | 'dealer', itemId: string) => void;
-  setSawActive: (active: boolean) => void;
+  setPlayerSawActive: (active: boolean) => void;
+  setDealerSawActive: (active: boolean) => void;
   setGuillotineTriggered: (triggered: boolean) => void;
   setSkipDealerTurn: (skip: boolean) => void;
   nextRound: () => void;
@@ -202,7 +204,8 @@ const initialState = {
   dealerItems: [] as Item[],
   currentRound: 1,
   maxRounds: 3,
-  sawActive: false,
+  playerSawActive: false,
+  dealerSawActive: false,
   guillotineTriggered: false,
   skipDealerTurn: false,
   showTutorial: readTutorialPreference(),
@@ -285,7 +288,8 @@ export const useGameStore = create<GameState>((set, get) => ({
         : { dealerItems: s.dealerItems.filter((i) => i.id !== itemId) }),
     })),
 
-  setSawActive: (active) => set({ sawActive: active }),
+  setPlayerSawActive: (active) => set({ playerSawActive: active }),
+  setDealerSawActive: (active) => set({ dealerSawActive: active }),
 
   setGuillotineTriggered: (triggered) => set({ guillotineTriggered: triggered }),
 
@@ -311,7 +315,8 @@ export const useGameStore = create<GameState>((set, get) => ({
         dealerMaxHP: config.dealerHP,
         shells: [],
         currentShellIndex: 0,
-        sawActive: false,
+        playerSawActive: false,
+        dealerSawActive: false,
         skipDealerTurn: false,
         phase: 'ROUND_START',
       });
@@ -330,7 +335,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       currentShellIndex: 0,
       playerItems: [],
       dealerItems: [],
-      sawActive: false,
+      playerSawActive: false,
+      dealerSawActive: false,
       skipDealerTurn: false,
       guillotineTriggered: false,
       phase: 'ROUND_START',

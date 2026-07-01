@@ -47,7 +47,7 @@ export default function GameplayScreen() {
           currentRound={state.currentRound}
           maxRounds={state.maxRounds}
           roundLabel={state.roundLabel}
-          sawActive={state.sawActive}
+          playerSawActive={state.playerSawActive}
           skipDealerTurn={state.skipDealerTurn}
           onToggleSettings={actions.toggleSettings}
         />

@@ -32,10 +32,11 @@ export function useGameplayController(navigate: NavigateFunction) {
     dealerItems,
     currentRound,
     maxRounds,
-    sawActive,
+    playerSawActive,
     skipDealerTurn,
     damage,
-    setSawActive,
+    setPlayerSawActive,
+    setDealerSawActive,
     setSkipDealerTurn,
     addLog,
   } = useGameStore();
@@ -130,10 +131,12 @@ export function useGameplayController(navigate: NavigateFunction) {
       }
 
       if (outcome.sawConsumed) {
+        const setSawActive =
+          outcome.actor === 'player' ? setPlayerSawActive : setDealerSawActive;
         setSawActive(false);
       }
     },
-    [damage, setSawActive, showDamageText, triggerBloodFlash]
+    [damage, setPlayerSawActive, setDealerSawActive, showDamageText, triggerBloodFlash]
   );
 
   const handleShootSelf = useCallback(async () => {
@@ -146,7 +149,7 @@ export function useGameplayController(navigate: NavigateFunction) {
       actor: 'player',
       target: 'player',
       shellType,
-      sawActive: useGameStore.getState().sawActive,
+      actorSawActive: useGameStore.getState().playerSawActive,
     });
     applyShotOutcome(outcome);
 
@@ -187,7 +190,7 @@ export function useGameplayController(navigate: NavigateFunction) {
       actor: 'player',
       target: 'dealer',
       shellType,
-      sawActive: useGameStore.getState().sawActive,
+      actorSawActive: useGameStore.getState().playerSawActive,
     }));
 
     setTimeout(() => {
@@ -247,7 +250,7 @@ export function useGameplayController(navigate: NavigateFunction) {
       dealerItems,
       currentRound,
       maxRounds,
-      sawActive,
+      playerSawActive,
       skipDealerTurn,
       dealerThinking,
       actionsEnabled,

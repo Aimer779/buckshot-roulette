@@ -14,7 +14,7 @@ interface GameplayHudProps {
   currentRound: number;
   maxRounds: number;
   roundLabel: RoundLabel;
-  sawActive: boolean;
+  playerSawActive: boolean;
   skipDealerTurn: boolean;
   onToggleSettings: () => void;
 }
@@ -28,7 +28,7 @@ export default function GameplayHud({
   currentRound,
   maxRounds,
   roundLabel,
-  sawActive,
+  playerSawActive,
   skipDealerTurn,
   onToggleSettings,
 }: GameplayHudProps) {
@@ -66,7 +66,7 @@ export default function GameplayHud({
         >
           {roundLabel.text}
         </span>
-        {sawActive && (
+        {playerSawActive && (
           <span
             className="flex items-center gap-1 font-chinese text-xs px-2 py-0.5 rounded-full border"
             style={{

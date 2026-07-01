@@ -14,7 +14,8 @@ export interface ApplyItemEffectDeps {
   damage: (target: 'player' | 'dealer', amount: number) => void;
   removeItem: (target: 'player' | 'dealer', itemId: string) => void;
   addItem: (target: 'player' | 'dealer', item: Item) => void;
-  setSawActive: (active: boolean) => void;
+  setPlayerSawActive: (active: boolean) => void;
+  setDealerSawActive: (active: boolean) => void;
   setSkipDealerTurn: (skip: boolean) => void;
   revealShell: (index: number) => void;
   addLog: (message: string, type: 'info' | 'damage' | 'heal' | 'item' | 'system') => void;
@@ -82,8 +83,10 @@ export function applyItemEffectResult(
     }
   }
 
-  if (result.sawActive !== undefined) {
-    deps.setSawActive(result.sawActive);
+  if (result.actorSawActive !== undefined) {
+    const setSawActive =
+      actor === 'player' ? deps.setPlayerSawActive : deps.setDealerSawActive;
+    setSawActive(result.actorSawActive);
   }
 
   if (result.skipDealerTurn) {
@@ -126,7 +129,7 @@ function buildContext(actor: ItemActor, item: Item): ItemEffectContext {
     shells: s.shells,
     currentShellIndex: s.currentShellIndex,
     currentShell: s.getCurrentShell(),
-    sawActive: s.sawActive,
+    actorSawActive: actor === 'player' ? s.playerSawActive : s.dealerSawActive,
     guillotineTriggered: s.guillotineTriggered,
     opponentItems: actor === 'player' ? s.dealerItems : s.playerItems,
   };
@@ -158,7 +161,8 @@ export function usePlayerItems({
     damage,
     removeItem,
     addItem,
-    setSawActive,
+    setPlayerSawActive,
+    setDealerSawActive,
     setSkipDealerTurn,
     revealShell,
     addLog,
@@ -176,7 +180,8 @@ export function usePlayerItems({
         damage,
         removeItem,
         addItem,
-        setSawActive,
+        setPlayerSawActive,
+        setDealerSawActive,
         setSkipDealerTurn,
         revealShell,
         addLog,
@@ -195,7 +200,8 @@ export function usePlayerItems({
       damage,
       removeItem,
       addItem,
-      setSawActive,
+      setPlayerSawActive,
+      setDealerSawActive,
       setSkipDealerTurn,
       revealShell,
       addLog,
@@ -219,7 +225,8 @@ export function usePlayerItems({
         damage,
         removeItem,
         addItem,
-        setSawActive,
+        setPlayerSawActive,
+        setDealerSawActive,
         setSkipDealerTurn,
         revealShell,
         addLog,
@@ -230,7 +237,8 @@ export function usePlayerItems({
       damage,
       removeItem,
       addItem,
-      setSawActive,
+      setPlayerSawActive,
+      setDealerSawActive,
       setSkipDealerTurn,
       revealShell,
       addLog,

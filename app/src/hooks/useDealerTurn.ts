@@ -69,7 +69,7 @@ export function useDealerTurn({
       actor: 'dealer',
       target: shootSelf ? 'dealer' : 'player',
       shellType,
-      sawActive: useGameStore.getState().sawActive,
+      actorSawActive: useGameStore.getState().dealerSawActive,
     });
     applyShotOutcome(outcome);
 
@@ -155,7 +155,7 @@ export function useDealerTurn({
         blankCount,
         remainingShells.length,
         s.dealerItems,
-        s.sawActive
+        s.dealerSawActive
       );
 
       setTimeout(() => {

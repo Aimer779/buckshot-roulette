@@ -31,7 +31,8 @@ export function useRoundLifecycle({
     loadShells: storeLoadShells,
     addItem,
     addLog,
-    setSawActive,
+    setPlayerSawActive,
+    setDealerSawActive,
     setSkipDealerTurn,
     setGuillotineTriggered,
     setWinner,
@@ -77,7 +78,8 @@ export function useRoundLifecycle({
       items.player.forEach((item) => addItem('player', item));
       items.dealer.forEach((item) => addItem('dealer', item));
 
-      setSawActive(false);
+      setPlayerSawActive(false);
+      setDealerSawActive(false);
       setSkipDealerTurn(false);
       setPhase('ROUND_START');
       addLog(`第 ${round} 回合开始`, 'system');
@@ -103,7 +105,8 @@ export function useRoundLifecycle({
       storeLoadShells,
       addItem,
       addLog,
-      setSawActive,
+      setPlayerSawActive,
+      setDealerSawActive,
       setSkipDealerTurn,
       setPhase,
       pushToast,
