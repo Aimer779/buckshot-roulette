@@ -1,14 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Settings,
-  Crosshair,
-  Shield,
-  AlertTriangle,
-  Sparkles,
-  Cigarette,
-} from 'lucide-react';
+import { motion } from 'framer-motion';
 import { useGameStore } from '@/store/gameStore';
 import {
   loadShells,
@@ -17,34 +9,19 @@ import {
   checkGameOver,
 } from '@/lib/gameEngine';
 import { playSFX, playBGM } from '@/lib/sound';
-import HealthBar from '@/components/HealthBar';
-import ItemCard from '@/components/ItemCard';
-import ShellIndicator from '@/components/ShellIndicator';
-import MessageToast from '@/components/MessageToast';
 import GameLogPanel from '@/components/GameLogPanel';
+import GameplayHud from '@/components/gameplay/GameplayHud';
+import DealerArea from '@/components/gameplay/DealerArea';
+import ShotgunStage from '@/components/gameplay/ShotgunStage';
+import PlayerArea from '@/components/gameplay/PlayerArea';
+import GameplayOverlays from '@/components/gameplay/GameplayOverlays';
+import {
+  useGameplayEffects,
+  ITEM_EFFECT_DURATION,
+} from '@/hooks/useGameplayEffects';
 import type { Item } from '@/store/gameStore';
 
-// ─── Types ───────────────────────────────────────────────
-
-interface ToastMsg {
-  id: string;
-  message: string;
-  type: 'info' | 'damage' | 'heal' | 'item' | 'system';
-}
-
 // ─── Helpers ─────────────────────────────────────────────
-
-let toastId = 0;
-const makeToast = (
-  message: string,
-  type: ToastMsg['type'] = 'info'
-): ToastMsg => ({
-  id: `toast-${++toastId}`,
-  message,
-  type,
-});
-
-const ITEM_EFFECT_DURATION = 1200;
 
 const ROUND_LABELS: Record<number, { text: string; color: string; bg: string }> = {
   1: { text: '教学回合', color: 'var(--accent-blue)', bg: 'rgba(59, 130, 246, 0.2)' },
@@ -89,70 +66,39 @@ export default function GameplayScreen() {
     retryRound,
   } = useGameStore();
 
-  // ── Local UI state ──
-  const [toasts, setToasts] = useState<ToastMsg[]>([]);
+  // ── Centralized UI effects (toasts, flashes, shell eject, item badges) ──
+  const {
+    toasts,
+    pushToast,
+    dismissToast,
+    bloodFlash,
+    triggerBloodFlash,
+    shakeScreen,
+    triggerShake,
+    muzzleFlash,
+    triggerMuzzleFlash,
+    damageFloatingText,
+    showDamageText,
+    itemEffectAnim,
+    showItemEffect,
+    revealedShellIndex,
+    showRevealedShell,
+    shellEjectAnim,
+    ejectedShellType,
+    showShellEject,
+  } = useGameplayEffects();
+
+  // ── Local UI state (lifecycle / turn-driven, not short animations) ──
   const [roundAnnounce, setRoundAnnounce] = useState(false);
   const [dealerThinking, setDealerThinking] = useState(false);
   const [shootingAnim, setShootingAnim] = useState<'self' | 'dealer' | null>(null);
-  const [muzzleFlash, setMuzzleFlash] = useState(false);
-  const [bloodFlash, setBloodFlash] = useState(false);
-  const [shakeScreen, setShakeScreen] = useState(false);
-  const [shellEjectAnim, setShellEjectAnim] = useState(false);
-  const [ejectedShellType, setEjectedShellType] = useState<'live' | 'blank' | null>(null);
   const [showGuillotineWarning, setShowGuillotineWarning] = useState(false);
-  const [itemEffectAnim, setItemEffectAnim] = useState<string | null>(null);
-  const [revealedShellIndex, setRevealedShellIndex] = useState<number | null>(null);
-  const [damageFloatingText, setDamageFloatingText] = useState<{
-    text: string;
-    target: 'player' | 'dealer';
-  } | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const animLockRef = useRef(false);
-  const containerRef = useRef<HTMLDivElement>(null);
   const initializedRoundRef = useRef<number | null>(null);
   const pendingRoundEndRef = useRef<'won' | 'lost' | null>(null);
-
-  // ── Toast helpers ──
-  const pushToast = useCallback(
-    (message: string, type: ToastMsg['type'] = 'info') => {
-      const t = makeToast(message, type);
-      setToasts((prev) => [t, ...prev].slice(0, 5));
-    },
-    []
-  );
-
-  const dismissToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
-
-  // ── Blood flash effect ──
-  const triggerBloodFlash = useCallback(() => {
-    setBloodFlash(true);
-    setTimeout(() => setBloodFlash(false), 900);
-  }, []);
-
-  // ── Screen shake ──
-  const triggerShake = useCallback(() => {
-    setShakeScreen(true);
-    setTimeout(() => setShakeScreen(false), 300);
-  }, []);
-
-  // ── Muzzle flash ──
-  const triggerMuzzleFlash = useCallback(() => {
-    setMuzzleFlash(true);
-    setTimeout(() => setMuzzleFlash(false), 250);
-  }, []);
-
-  // ── Floating damage text ──
-  const showDamageText = useCallback(
-    (text: string, target: 'player' | 'dealer') => {
-      setDamageFloatingText({ text, target });
-      setTimeout(() => setDamageFloatingText(null), 1000);
-    },
-    []
-  );
 
   // ── Initialize game ──
   useEffect(() => {
@@ -355,7 +301,6 @@ export default function GameplayScreen() {
         return;
       }
 
-      setEjectedShellType(shell.type);
       setPhase('ANIMATING');
       setShootingAnim(target);
 
@@ -374,11 +319,8 @@ export default function GameplayScreen() {
         }
 
         // Step 3: Shell eject (500ms mark)
-        setShellEjectAnim(true);
         playSFX('shell-eject');
-        setTimeout(() => {
-          setShellEjectAnim(false);
-        }, 800);
+        showShellEject(shell.type);
 
         // Step 4: Result
         setTimeout(() => {
@@ -388,7 +330,7 @@ export default function GameplayScreen() {
         }, 600);
       }, 400);
     },
-    [setPhase, triggerShake, triggerMuzzleFlash]
+    [setPhase, triggerShake, triggerMuzzleFlash, showShellEject]
   );
 
   // ── Handle shoot self ──
@@ -728,8 +670,7 @@ export default function GameplayScreen() {
             heal('player', 1);
             removeItem('player', item.id);
             playSFX('item-use');
-            setItemEffectAnim('cigarette');
-            setTimeout(() => setItemEffectAnim(null), ITEM_EFFECT_DURATION);
+            showItemEffect('cigarette');
           }
           break;
         }
@@ -740,9 +681,8 @@ export default function GameplayScreen() {
             setSawActive(true);
             removeItem('player', item.id);
             playSFX('saw');
-            setItemEffectAnim('handsaw');
             addLog('手锯已装备，下一发伤害翻倍', 'item');
-            setTimeout(() => setItemEffectAnim(null), ITEM_EFFECT_DURATION);
+            showItemEffect('handsaw');
           }
           break;
 
@@ -751,9 +691,8 @@ export default function GameplayScreen() {
           setSkipDealerTurn(true);
           removeItem('player', item.id);
           playSFX('metal-clank');
-          setItemEffectAnim('handcuffs');
           addLog('手铐已使用，庄家下回合被跳过', 'item');
-          setTimeout(() => setItemEffectAnim(null), ITEM_EFFECT_DURATION);
+          showItemEffect('handcuffs');
           break;
 
         // ─── 啤酒: eject current shell ───
@@ -765,12 +704,9 @@ export default function GameplayScreen() {
             useGameStore.getState().useCurrentShell();
             removeItem('player', item.id);
             playSFX('glass-break');
-            setItemEffectAnim('beer');
-            setEjectedShellType(st);
-            setShellEjectAnim(true);
+            showItemEffect('beer');
+            showShellEject(st, ITEM_EFFECT_DURATION);
             setTimeout(() => {
-              setItemEffectAnim(null);
-              setShellEjectAnim(false);
               reloadIfEmptyOrAllBlank();
             }, ITEM_EFFECT_DURATION);
           }
@@ -782,15 +718,10 @@ export default function GameplayScreen() {
           const shell = s.getCurrentShell();
           if (shell) {
             revealShell(s.currentShellIndex);
-            setRevealedShellIndex(s.currentShellIndex);
             addLog(`当前子弹: ${shell.type === 'live' ? '实弹' : '空包弹'}`, 'item');
             removeItem('player', item.id);
             playSFX('item-use');
-            setItemEffectAnim('magnifier');
-            setTimeout(() => {
-              setItemEffectAnim(null);
-              setRevealedShellIndex(null);
-            }, 2000);
+            showRevealedShell(s.currentShellIndex);
           }
           break;
         }
@@ -807,9 +738,8 @@ export default function GameplayScreen() {
             addItem('player', stolen);
             removeItem('player', item.id);
             playSFX('item-use');
-            setItemEffectAnim('adrenaline');
             addLog('偷取了庄家的道具', 'item');
-            setTimeout(() => setItemEffectAnim(null), ITEM_EFFECT_DURATION);
+            showItemEffect('adrenaline');
           }
           break;
         }
@@ -822,7 +752,7 @@ export default function GameplayScreen() {
           const roll = Math.random();
           removeItem('player', item.id);
           playSFX('item-use');
-          setItemEffectAnim('medicine');
+          showItemEffect('medicine');
 
           if (roll < 0.5) {
             heal('player', 2);
@@ -833,7 +763,6 @@ export default function GameplayScreen() {
             showDamageText('-1', 'player');
             addLog('过期药品失效，失去 1 点生命', 'damage');
           }
-          setTimeout(() => setItemEffectAnim(null), ITEM_EFFECT_DURATION);
           break;
         }
 
@@ -849,9 +778,8 @@ export default function GameplayScreen() {
             }));
             removeItem('player', item.id);
             playSFX('item-use');
-            setItemEffectAnim('inverter');
             addLog(`逆变器翻转了子弹类型`, 'item');
-            setTimeout(() => setItemEffectAnim(null), ITEM_EFFECT_DURATION);
+            showItemEffect('inverter');
           }
           break;
         }
@@ -866,14 +794,13 @@ export default function GameplayScreen() {
           }
           removeItem('player', item.id);
           playSFX('phone-ring');
-          setItemEffectAnim('phone');
+          showItemEffect('phone');
 
           if (futureIndices.length > 0) {
             const ri = futureIndices[Math.floor(Math.random() * futureIndices.length)];
             revealShell(ri);
             addLog(`手机揭示了第 ${ri - s.currentShellIndex} 发子弹`, 'item');
           }
-          setTimeout(() => setItemEffectAnim(null), ITEM_EFFECT_DURATION);
           break;
         }
 
@@ -898,6 +825,9 @@ export default function GameplayScreen() {
       triggerBloodFlash,
       showDamageText,
       reloadIfEmptyOrAllBlank,
+      showItemEffect,
+      showShellEject,
+      showRevealedShell,
     ]
   );
 
@@ -918,7 +848,6 @@ export default function GameplayScreen() {
 
   return (
     <div
-      ref={containerRef}
       className="relative min-h-[100dvh] w-full overflow-hidden select-none"
       style={{ backgroundColor: 'var(--bg-void)' }}
     >
@@ -946,98 +875,16 @@ export default function GameplayScreen() {
         className="relative z-10 min-h-[100dvh] flex flex-col"
       >
         {/* ═══ Top HUD Bar ═══ */}
-        <div
-          className="grid grid-cols-[1fr_auto_1fr] items-center px-4 py-2 shrink-0"
-          style={{
-            backgroundColor: 'rgba(10, 10, 15, 0.7)',
-            backdropFilter: 'blur(6px)',
-            borderBottom: '1px solid rgba(255,255,255,0.05)',
-            height: '48px',
-          }}
-        >
-          {/* Left: Round info */}
-          <div className="flex items-center gap-2">
-            <span
-              className="font-chinese text-sm font-medium tracking-wider"
-              style={{ color: 'var(--text-primary)' }}
-            >
-              第{' '}
-              <span
-                className="font-bold"
-                style={{ color: 'var(--accent-red)', fontSize: '18px' }}
-              >
-                {currentRound}
-              </span>{' '}
-              回合 / 共{maxRounds}回合
-            </span>
-            <span
-              className="font-chinese text-xs px-2 py-0.5 rounded-full"
-              style={{
-                color: roundLabel.color,
-                backgroundColor: roundLabel.bg,
-              }}
-            >
-              {roundLabel.text}
-            </span>
-            {sawActive && (
-              <span
-                className="flex items-center gap-1 font-chinese text-xs px-2 py-0.5 rounded-full border"
-                style={{
-                  color: 'var(--accent-red)',
-                  borderColor: 'var(--accent-red)',
-                  backgroundColor: 'rgba(220, 38, 38, 0.2)',
-                }}
-              >
-                <Crosshair className="w-3 h-3" />
-                手锯
-              </span>
-            )}
-            {skipDealerTurn && (
-              <span
-                className="flex items-center gap-1 font-chinese text-xs px-2 py-0.5 rounded-full border"
-                style={{
-                  color: 'var(--accent-gold)',
-                  borderColor: 'var(--accent-gold)',
-                  backgroundColor: 'rgba(212, 165, 32, 0.2)',
-                }}
-              >
-                <Shield className="w-3 h-3" />
-                跳过
-              </span>
-            )}
-          </div>
-
-          {/* Center: Phase message */}
-          <div className="hidden sm:flex items-center gap-2">
-            <AnimatePresence mode="wait">
-              <motion.span
-                key={phase + (dealerThinking ? '-thinking' : '')}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="font-chinese text-base font-medium"
-                style={{ color: 'var(--text-primary)' }}
-              >
-                {phase === 'ROUND_START' && '回合开始'}
-                {phase === 'PLAYER_TURN' && '你的回合'}
-                {phase === 'DEALER_TURN' && (dealerThinking ? '庄家思考中...' : '庄家行动中')}
-                {phase === 'ANIMATING' && '...'}
-                {phase === 'GAME_OVER' && '游戏结束'}
-              </motion.span>
-            </AnimatePresence>
-          </div>
-
-          {/* Right: Settings */}
-          <div className="flex items-center justify-end">
-            <button
-              onClick={() => setSettingsOpen(!settingsOpen)}
-              className="p-2 rounded-lg transition-all hover:bg-white/5"
-              style={{ color: 'var(--text-secondary)' }}
-            >
-              <Settings className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
+        <GameplayHud
+          phase={phase}
+          dealerThinking={dealerThinking}
+          currentRound={currentRound}
+          maxRounds={maxRounds}
+          roundLabel={roundLabel}
+          sawActive={sawActive}
+          skipDealerTurn={skipDealerTurn}
+          onToggleSettings={() => setSettingsOpen((prev) => !prev)}
+        />
 
         {/* ═══ Game Log + Main Game Area ═══ */}
         <div className="relative flex-1 flex overflow-hidden">
@@ -1045,571 +892,57 @@ export default function GameplayScreen() {
 
           {/* ═══ Main Game Area ═══ */}
           <div className="flex-1 flex flex-col items-center justify-between px-4 py-2 sm:py-4 relative overflow-y-auto">
-          {/* ─── Dealer Section ─── */}
-          <div className="w-full max-w-4xl flex flex-col items-center gap-2">
-            {/* Dealer HP */}
-            <div className="flex items-center gap-3">
-              <HealthBar
-                current={dealerHP}
-                max={dealerMaxHP}
-                label="庄家"
-                isDealer
-              />
-            </div>
+            {/* ─── Dealer Section ─── */}
+            <DealerArea
+              dealerHP={dealerHP}
+              dealerMaxHP={dealerMaxHP}
+              dealerItems={dealerItems}
+              phase={phase}
+            />
 
-            {/* Dealer items */}
-            {dealerItems.length > 0 && (
-              <div className="flex items-center gap-1.5 flex-wrap justify-center">
-                {dealerItems.map((item) => (
-                  <ItemCard key={item.id} item={item} size="sm" disabled />
-                ))}
-              </div>
-            )}
+            {/* ─── Central Game Area ─── */}
+            <ShotgunStage
+              shells={shells}
+              currentShellIndex={currentShellIndex}
+              shootingAnim={shootingAnim}
+              muzzleFlash={muzzleFlash}
+              shellEjectAnim={shellEjectAnim}
+              ejectedShellType={ejectedShellType}
+              revealedShellIndex={revealedShellIndex}
+              itemEffectAnim={itemEffectAnim}
+            />
 
-            {/* Dealer silhouette */}
-            <motion.div
-              animate={
-                phase === 'DEALER_TURN'
-                  ? { y: 5, scale: 1.02 }
-                  : { y: 0, scale: 1 }
-              }
-              transition={{ duration: 0.5 }}
-              className="relative"
-            >
-              <img
-                src="/dealer-silhouette.png"
-                alt="庄家"
-                className="w-[120px] h-auto sm:w-[160px] md:w-[200px] object-contain"
-                draggable={false}
-                style={{
-                  filter:
-                    phase === 'DEALER_TURN'
-                      ? 'drop-shadow(0 0 20px rgba(220, 38, 38, 0.5))'
-                      : 'drop-shadow(0 0 10px rgba(220, 38, 38, 0.2))',
-                  transition: 'filter 0.5s',
-                }}
-              />
-              {/* Red eye glow on dealer turn */}
-              {phase === 'DEALER_TURN' && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: [0.3, 0.8, 0.3] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  className="absolute top-[35%] left-[45%] w-2 h-1 rounded-full"
-                  style={{
-                    backgroundColor: 'var(--accent-red)',
-                    boxShadow: '0 0 10px var(--accent-red)',
-                  }}
-                />
-              )}
-            </motion.div>
-          </div>
-
-          {/* ─── Central Game Area ─── */}
-          <div className="flex flex-col items-center gap-4 relative">
-            {/* Shell info panel */}
-            <div
-              className="flex flex-col items-center gap-2 px-6 py-3 rounded-xl"
-              style={{
-                backgroundColor: 'rgba(20, 20, 27, 0.85)',
-                backdropFilter: 'blur(8px)',
-                border: '1px solid rgba(255,255,255,0.1)',
-              }}
-            >
-              <span
-                className="font-chinese text-sm"
-                style={{ color: 'var(--text-secondary)' }}
-              >
-                枪内子弹
-              </span>
-              <ShellIndicator
-                shells={shells}
-                currentIndex={currentShellIndex}
-                showUnknown
-              />
-            </div>
-
-            {/* Shotgun area */}
-            <div className="relative flex items-center justify-center">
-              {/* Shotgun image */}
-              <motion.img
-                src={
-                  shootingAnim === 'self'
-                    ? '/shotgun-aim-self.png'
-                    : shootingAnim === 'dealer'
-                      ? '/shotgun-aim-opponent.png'
-                      : '/shotgun-idle.png'
-                }
-                alt="霰弹枪"
-                className="w-[min(400px,55vw)] sm:w-[min(500px,45vw)] object-contain"
-                draggable={false}
-                animate={
-                  shootingAnim
-                    ? { y: -15, scale: 1.05 }
-                    : { y: [0, 2, 0] }
-                }
-                transition={
-                  shootingAnim
-                    ? { duration: 0.3 }
-                    : { duration: 3, repeat: Infinity, ease: 'easeInOut' }
-                }
-              />
-
-              {/* Muzzle flash overlay */}
-              <AnimatePresence>
-                {muzzleFlash && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.5 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 1.2 }}
-                    transition={{ duration: 0.1 }}
-                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100px] h-[100px] rounded-full pointer-events-none"
-                    style={{
-                      background:
-                        'radial-gradient(circle, rgba(255,200,50,0.9) 0%, rgba(255,100,0,0.5) 30%, transparent 70%)',
-                    }}
-                  />
-                )}
-              </AnimatePresence>
-
-              {/* Shell eject animation */}
-              <AnimatePresence>
-                {shellEjectAnim && (
-                  <motion.div
-                    initial={{ x: 20, y: -10, opacity: 1, rotate: 0 }}
-                    animate={{ x: 100, y: 60, opacity: 0, rotate: 720 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.6, ease: 'easeOut' }}
-                    className="absolute top-0 right-0 w-4 h-4 rounded-full"
-                    style={{
-                      backgroundColor:
-                        ejectedShellType === 'live'
-                          ? 'var(--accent-red)'
-                          : 'var(--accent-blue-dim)',
-                      boxShadow:
-                        ejectedShellType === 'live'
-                          ? '0 0 8px rgba(220, 38, 38, 0.6)'
-                          : '0 0 4px rgba(59, 130, 246, 0.3)',
-                    }}
-                  />
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* Revealed shell indicator */}
-            <AnimatePresence>
-              {revealedShellIndex !== null && itemEffectAnim === 'magnifier' && (
-                <motion.div
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0, opacity: 0 }}
-                  className="flex items-center gap-3 px-6 py-3 rounded-xl border-2"
-                  style={{
-                    borderColor:
-                      shells[revealedShellIndex]?.type === 'live'
-                        ? 'var(--accent-red)'
-                        : 'var(--accent-blue)',
-                    backgroundColor: 'rgba(20, 20, 27, 0.95)',
-                  }}
-                >
-                  <div
-                    className="w-8 h-8 rounded-full"
-                    style={{
-                      backgroundColor:
-                        shells[revealedShellIndex]?.type === 'live'
-                          ? 'var(--accent-red)'
-                          : 'var(--accent-blue-dim)',
-                      boxShadow:
-                        shells[revealedShellIndex]?.type === 'live'
-                          ? '0 0 16px rgba(220, 38, 38, 0.8)'
-                          : '0 0 10px rgba(59, 130, 246, 0.5)',
-                    }}
-                  />
-                  <span
-                    className="font-chinese text-lg font-bold"
-                    style={{
-                      color:
-                        shells[revealedShellIndex]?.type === 'live'
-                          ? 'var(--accent-red)'
-                          : 'var(--accent-blue)',
-                    }}
-                  >
-                    {shells[revealedShellIndex]?.type === 'live' ? '实弹' : '空包弹'}
-                  </span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Item effect animation */}
-            <AnimatePresence>
-              {itemEffectAnim && itemEffectAnim !== 'magnifier' && (
-                <motion.div
-                  initial={{ scale: 0, opacity: 0, y: 20 }}
-                  animate={{ scale: 1, opacity: 1, y: 0 }}
-                  exit={{ scale: 0, opacity: 0, y: -20 }}
-                  className="flex items-center gap-2 px-5 py-2 rounded-xl"
-                  style={{
-                    backgroundColor: 'rgba(212, 165, 32, 0.2)',
-                    border: '1px solid var(--accent-gold)',
-                  }}
-                >
-                  <Sparkles className="w-5 h-5" style={{ color: 'var(--accent-gold)' }} />
-                  <span
-                    className="font-chinese text-sm font-medium"
-                    style={{ color: 'var(--accent-gold)' }}
-                  >
-                    {itemEffectAnim === 'cigarette' && '香烟生效'}
-                    {itemEffectAnim === 'handsaw' && '手锯已装备'}
-                    {itemEffectAnim === 'handcuffs' && '手铐已使用'}
-                    {itemEffectAnim === 'beer' && '啤酒生效'}
-                    {itemEffectAnim === 'adrenaline' && '肾上腺素生效'}
-                    {itemEffectAnim === 'medicine' && '药品生效'}
-                    {itemEffectAnim === 'inverter' && '逆变器生效'}
-                    {itemEffectAnim === 'phone' && '手机通话中...'}
-                  </span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* ─── Player Section ─── */}
-          <div className="w-full max-w-4xl flex flex-col items-center gap-3">
-            {/* Player HP */}
-            <HealthBar current={playerHP} max={playerMaxHP} label="你的生命" />
-
-            {/* Player items */}
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              {playerItems.length === 0 && (
-                <span
-                  className="font-chinese text-xs"
-                  style={{ color: 'var(--text-dim)' }}
-                >
-                  没有道具
-                </span>
-              )}
-              {playerItems.map((item) => (
-                <ItemCard
-                  key={item.id}
-                  item={item}
-                  onClick={handleUseItem}
-                  disabled={!actionsEnabled}
-                  size="md"
-                />
-              ))}
-            </div>
-
-            {/* ─── Action Buttons ─── */}
-            <div className="flex items-center gap-3 sm:gap-6 w-full max-w-[600px] justify-center pb-2">
-              {/* Shoot self button */}
-              <motion.button
-                whileHover={
-                  actionsEnabled ? { scale: 1.03, y: -2 } : {}
-                }
-                whileTap={actionsEnabled ? { scale: 0.98 } : {}}
-                onClick={handleShootSelf}
-                disabled={!actionsEnabled}
-                className="flex-1 max-w-[280px] h-[64px] sm:h-[72px] rounded-lg font-chinese font-bold flex flex-col items-center justify-center gap-0.5 transition-all"
-                style={{
-                  fontSize: '18px',
-                  color: 'var(--text-primary)',
-                  border: `2px solid ${actionsEnabled ? 'var(--accent-blue-dim)' : 'var(--bg-elevated)'}`,
-                  background: actionsEnabled
-                    ? 'linear-gradient(180deg, rgba(30,30,40,0.9) 0%, rgba(10,10,15,0.95) 100%)'
-                    : 'rgba(20, 20, 27, 0.5)',
-                  opacity: actionsEnabled ? 1 : 0.4,
-                  cursor: actionsEnabled ? 'pointer' : 'not-allowed',
-                  boxShadow: actionsEnabled
-                    ? '0 4px 16px rgba(0,0,0,0.4), 0 0 20px rgba(59, 130, 246, 0.1)'
-                    : 'none',
-                }}
-              >
-                <span className="flex items-center gap-2">
-                  <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
-                  射向自己
-                </span>
-                <span
-                  className="font-chinese text-xs"
-                  style={{ color: 'var(--accent-blue)', fontSize: '11px' }}
-                >
-                  空包弹 = 额外回合
-                </span>
-              </motion.button>
-
-              {/* Shoot dealer button */}
-              <motion.button
-                whileHover={
-                  actionsEnabled ? { scale: 1.03, y: -2 } : {}
-                }
-                whileTap={actionsEnabled ? { scale: 0.98 } : {}}
-                onClick={handleShootDealer}
-                disabled={!actionsEnabled}
-                className="flex-1 max-w-[280px] h-[64px] sm:h-[72px] rounded-lg font-chinese font-bold flex flex-col items-center justify-center gap-0.5 transition-all"
-                style={{
-                  fontSize: '18px',
-                  color: 'var(--text-primary)',
-                  border: `2px solid ${actionsEnabled ? 'var(--accent-red)' : 'var(--bg-elevated)'}`,
-                  background: actionsEnabled
-                    ? 'linear-gradient(180deg, rgba(60,20,20,0.9) 0%, rgba(30,10,10,0.95) 100%)'
-                    : 'rgba(20, 20, 27, 0.5)',
-                  opacity: actionsEnabled ? 1 : 0.4,
-                  cursor: actionsEnabled ? 'pointer' : 'not-allowed',
-                  boxShadow: actionsEnabled
-                    ? '0 4px 16px rgba(0,0,0,0.4), 0 0 20px rgba(220, 38, 38, 0.15)'
-                    : 'none',
-                }}
-              >
-                <span className="flex items-center gap-2">
-                  <Crosshair className="w-4 h-4 sm:w-5 sm:h-5" />
-                  射向对手
-                </span>
-                <span
-                  className="font-chinese text-xs"
-                  style={{ color: 'var(--accent-red-glow)', fontSize: '11px' }}
-                >
-                  实弹 = 造成伤害
-                </span>
-              </motion.button>
-            </div>
+            {/* ─── Player Section ─── */}
+            <PlayerArea
+              playerHP={playerHP}
+              playerMaxHP={playerMaxHP}
+              playerItems={playerItems}
+              actionsEnabled={actionsEnabled}
+              onUseItem={handleUseItem}
+              onShootSelf={handleShootSelf}
+              onShootDealer={handleShootDealer}
+            />
           </div>
         </div>
-      </div>
       </motion.div>
 
       {/* ═══ Overlays ═══ */}
-
-      {/* Round announcement */}
-      <AnimatePresence>
-        {roundAnnounce && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
-            className="fixed inset-0 z-[200] flex flex-col items-center justify-center"
-            style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
-          >
-            <motion.div
-              initial={{ scale: 0.5, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 1.2, opacity: 0 }}
-              transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-              className="flex flex-col items-center gap-4 px-12 py-8 rounded-xl border-2"
-              style={{
-                borderColor: 'var(--accent-gold)',
-                backgroundColor: 'rgba(10, 10, 15, 0.95)',
-                boxShadow: '0 0 40px rgba(212, 165, 32, 0.3)',
-              }}
-            >
-              <span
-                className="font-chinese text-3xl sm:text-5xl font-black"
-                style={{
-                  color: 'var(--accent-gold)',
-                  textShadow: '0 0 20px rgba(212, 165, 32, 0.5)',
-                }}
-              >
-                第 {currentRound} 回合
-              </span>
-              <span
-                className="font-chinese text-lg"
-                style={{ color: 'var(--text-secondary)' }}
-              >
-                {roundLabel.text}
-              </span>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Guillotine warning */}
-      <AnimatePresence>
-        {showGuillotineWarning && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 1.1 }}
-            transition={{ duration: 0.5 }}
-            className="fixed inset-0 z-[150] flex items-center justify-center pointer-events-none"
-          >
-            <div
-              className="flex items-center gap-4 px-8 py-4 rounded-xl border-2"
-              style={{
-                borderColor: 'var(--accent-red)',
-                backgroundColor: 'rgba(139, 26, 26, 0.9)',
-                boxShadow: '0 0 40px rgba(220, 38, 38, 0.5)',
-              }}
-            >
-              <AlertTriangle className="w-8 h-8" style={{ color: 'var(--accent-gold)' }} />
-              <div className="flex flex-col">
-                <span
-                  className="font-chinese text-xl font-bold"
-                  style={{ color: 'var(--text-primary)' }}
-                >
-                  闸刀已触发！
-                </span>
-                <span
-                  className="font-chinese text-sm"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  恢复类道具失效，下次受伤即死
-                </span>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Blood flash overlay */}
-      <AnimatePresence>
-        {bloodFlash && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.6 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.1 }}
-            className="fixed inset-0 z-[120] pointer-events-none"
-            style={{
-              background:
-                'radial-gradient(ellipse at center, rgba(139, 26, 26, 0.5) 0%, transparent 70%)',
-            }}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Damage floating text */}
-      <AnimatePresence>
-        {damageFloatingText && (
-          <motion.div
-            initial={{
-              opacity: 1,
-              y: 0,
-              x: '-50%',
-              scale: 1,
-            }}
-            animate={{
-              opacity: 0,
-              y: -80,
-              scale: 1.5,
-            }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1, ease: 'easeOut' }}
-            className="fixed z-[130] pointer-events-none font-pixel text-4xl font-bold"
-            style={{
-              left: damageFloatingText.target === 'player' ? '50%' : '50%',
-              bottom: damageFloatingText.target === 'player' ? '20%' : '60%',
-              color:
-                damageFloatingText.text.startsWith('+')
-                  ? 'var(--hp-full)'
-                  : 'var(--accent-red)',
-              textShadow:
-                damageFloatingText.text.startsWith('+')
-                  ? '0 0 10px rgba(16, 185, 129, 0.8)'
-                  : '0 0 10px rgba(220, 38, 38, 0.8)',
-            }}
-          >
-            {damageFloatingText.text}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Settings panel */}
-      <AnimatePresence>
-        {settingsOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[140] flex items-center justify-center"
-            style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
-            onClick={() => setSettingsOpen(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="flex flex-col gap-4 p-6 rounded-xl w-[320px]"
-              style={{
-                backgroundColor: 'var(--bg-dark)',
-                border: '1px solid var(--bg-elevated)',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
-              }}
-            >
-              <h3
-                className="font-chinese text-xl font-bold text-center"
-                style={{ color: 'var(--text-primary)' }}
-              >
-                游戏设置
-              </h3>
-
-              <button
-                onClick={() => setSettingsOpen(false)}
-                className="w-full py-2 rounded-lg font-chinese text-sm font-medium transition-all hover:brightness-110"
-                style={{
-                  backgroundColor: 'var(--bg-elevated)',
-                  color: 'var(--text-primary)',
-                  border: '1px solid var(--bg-surface)',
-                }}
-              >
-                继续游戏
-              </button>
-
-              <button
-                onClick={handleQuit}
-                className="w-full py-2 rounded-lg font-chinese text-sm font-medium transition-all hover:brightness-110"
-                style={{
-                  backgroundColor: 'rgba(220, 38, 38, 0.2)',
-                  color: 'var(--accent-red)',
-                  border: '1px solid var(--accent-red)',
-                }}
-              >
-                返回主菜单
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Toast messages */}
-      <MessageToast
-        messages={toasts}
-        onDismiss={dismissToast}
-        autoDismiss
-        dismissDelay={2500}
+      <GameplayOverlays
+        roundAnnounce={roundAnnounce}
+        currentRound={currentRound}
+        roundLabel={roundLabel}
+        showGuillotineWarning={showGuillotineWarning}
+        bloodFlash={bloodFlash}
+        damageFloatingText={damageFloatingText}
+        settingsOpen={settingsOpen}
+        phase={phase}
+        dealerThinking={dealerThinking}
+        itemEffectAnim={itemEffectAnim}
+        toasts={toasts}
+        onDismissToast={dismissToast}
+        onCloseSettings={() => setSettingsOpen(false)}
+        onQuit={handleQuit}
       />
-
-      {/* Phase indicator (mobile only - shown at bottom) */}
-      <div
-        className="fixed bottom-2 left-1/2 -translate-x-1/2 z-50 sm:hidden"
-      >
-        <span
-          className="font-pixel text-xs px-3 py-1 rounded-full"
-          style={{
-            color: 'var(--text-dim)',
-            backgroundColor: 'rgba(10, 10, 15, 0.8)',
-          }}
-        >
-          {phase === 'ROUND_START' && '回合开始'}
-          {phase === 'PLAYER_TURN' && '你的回合'}
-          {phase === 'DEALER_TURN' && (dealerThinking ? '思考中...' : '行动中')}
-          {phase === 'ANIMATING' && '...'}
-          {phase === 'GAME_OVER' && '游戏结束'}
-        </span>
-      </div>
-
-      {/* Cigarette smoke effect (item use) */}
-      <AnimatePresence>
-        {itemEffectAnim === 'cigarette' && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: [0, 0.3, 0] }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1.5 }}
-            className="fixed bottom-[15%] left-1/2 -translate-x-1/2 z-[90] pointer-events-none"
-          >
-            <Cigarette className="w-12 h-12" style={{ color: 'var(--smoke-gray)' }} />
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
