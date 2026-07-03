@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { NavigateFunction } from 'react-router';
 import { useGameStore } from '@/store/gameStore';
 import { loadShells } from '@/lib/gameEngine';
@@ -34,10 +34,12 @@ export function useGameplayController(navigate: NavigateFunction) {
     maxRounds,
     playerSawActive,
     skipDealerTurn,
+    skipPlayerTurn,
     damage,
     setPlayerSawActive,
     setDealerSawActive,
     setSkipDealerTurn,
+    setSkipPlayerTurn,
     addLog,
   } = useGameStore();
 
@@ -68,6 +70,7 @@ export function useGameplayController(navigate: NavigateFunction) {
   });
 
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const skipPlayerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     isAnimatingRef,
@@ -125,9 +128,10 @@ export function useGameplayController(navigate: NavigateFunction) {
         if (outcome.damageTarget === 'player') {
           triggerBloodFlash();
         }
+        const fatal = useGameStore.getState().guillotineTriggered;
         damage(outcome.damageTarget, outcome.damage);
         playSFX('damage');
-        showDamageText(`-${outcome.damage}`, outcome.damageTarget);
+        showDamageText(fatal ? '即死' : `-${outcome.damage}`, outcome.damageTarget);
       }
 
       if (outcome.sawConsumed) {
@@ -140,7 +144,12 @@ export function useGameplayController(navigate: NavigateFunction) {
   );
 
   const handleShootSelf = useCallback(async () => {
-    if (phase !== 'PLAYER_TURN' || isAnimatingRef.current) return;
+    if (
+      phase !== 'PLAYER_TURN' ||
+      isAnimatingRef.current ||
+      useGameStore.getState().skipPlayerTurn
+    )
+      return;
 
     const shellType = await shoot('self');
     if (!shellType) return;
@@ -181,7 +190,12 @@ export function useGameplayController(navigate: NavigateFunction) {
   ]);
 
   const handleShootDealer = useCallback(async () => {
-    if (phase !== 'PLAYER_TURN' || isAnimatingRef.current) return;
+    if (
+      phase !== 'PLAYER_TURN' ||
+      isAnimatingRef.current ||
+      useGameStore.getState().skipPlayerTurn
+    )
+      return;
 
     const shellType = await shoot('dealer');
     if (!shellType) return;
@@ -212,6 +226,40 @@ export function useGameplayController(navigate: NavigateFunction) {
     setPhase,
   ]);
 
+  // Cleanup skip-player timer on unmount.
+  useEffect(() => {
+    return () => {
+      if (skipPlayerTimerRef.current) clearTimeout(skipPlayerTimerRef.current);
+    };
+  }, []);
+
+  // Player handcuff skip: consume the flag at the start of the player turn.
+  useEffect(() => {
+    if (phase !== 'PLAYER_TURN' || !skipPlayerTurn) return;
+
+    setSkipPlayerTurn(false);
+    addLog('玩家被手铐束缚，跳过回合', 'info');
+    pushToast('玩家被手铐束缚，跳过回合', 'info');
+    setPhase('ANIMATING');
+
+    if (skipPlayerTimerRef.current) clearTimeout(skipPlayerTimerRef.current);
+    skipPlayerTimerRef.current = setTimeout(() => {
+      skipPlayerTimerRef.current = null;
+      const s = useGameStore.getState();
+      if (s.playerHP <= 0 || s.dealerHP <= 0 || s.phase === 'GAME_OVER') return;
+      reloadIfEmptyOrAllBlank();
+      setPhase('DEALER_TURN');
+    }, 1000);
+  }, [
+    phase,
+    skipPlayerTurn,
+    setSkipPlayerTurn,
+    addLog,
+    pushToast,
+    setPhase,
+    reloadIfEmptyOrAllBlank,
+  ]);
+
   const { dealerThinking } = useDealerTurn({
     phase,
     shells,
@@ -234,7 +282,7 @@ export function useGameplayController(navigate: NavigateFunction) {
   }, [setPhase, navigate]);
 
   const isPlayerTurn = phase === 'PLAYER_TURN';
-  const actionsEnabled = isPlayerTurn && !isAnimating && !roundAnnounce;
+  const actionsEnabled = isPlayerTurn && !skipPlayerTurn && !isAnimating && !roundAnnounce;
   const roundLabel = ROUND_LABELS[currentRound] || ROUND_LABELS[3];
 
   return {

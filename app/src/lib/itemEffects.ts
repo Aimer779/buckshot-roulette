@@ -8,7 +8,6 @@ export type ItemActor = 'player' | 'dealer';
  */
 export const DEALER_AI_ITEM_TYPES = [
   'cigarette',
-  'magnifier',
   'handcuffs',
   'handsaw',
   'phone',
@@ -20,7 +19,6 @@ export const DEALER_EFFECTIVE_ITEM_TYPES = [
   'handsaw',
   'handcuffs',
   'beer',
-  'magnifier',
 ] as const satisfies readonly ItemType[];
 
 /**
@@ -62,6 +60,7 @@ export interface ItemEffectResult {
   revealedShellIndices?: number[];
   actorSawActive?: boolean;
   skipDealerTurn?: boolean;
+  skipPlayerTurn?: boolean;
   log?: {
     message: string;
     type: 'info' | 'damage' | 'heal' | 'item' | 'system';
@@ -81,7 +80,7 @@ export interface ItemEffectResult {
  *
  * Replaces the legacy inline switch statements in GameplayScreen.
  *
- * Dealer contract: cigarette/handsaw/handcuffs/beer/magnifier have real rules.
+ * Dealer contract: cigarette/handsaw/handcuffs/beer have real rules.
  * phone is selected by dealer AI but intentionally noop (consume + sfx only),
  * matching the old executeDealerItemUse default branch. Player-only types return
  * null for dealer so a future AI change cannot silently waste them.
@@ -100,7 +99,7 @@ export function executeItemEffect(ctx: ItemEffectContext): ItemEffectResult | nu
 
   switch (item.type) {
     case 'cigarette': {
-      if (actor === 'player' && ctx.guillotineTriggered) return null;
+      if (ctx.guillotineTriggered) return null;
       if (ownerHP >= ownerMaxHP) return null;
       return {
         consumedItemIds: [item.id],
@@ -134,14 +133,14 @@ export function executeItemEffect(ctx: ItemEffectContext): ItemEffectResult | nu
     case 'handcuffs':
       return {
         consumedItemIds: [item.id],
-        skipDealerTurn: true,
+        ...(actor === 'player' ? { skipDealerTurn: true } : { skipPlayerTurn: true }),
         sfx: 'metal-clank',
         uiEffect: actor === 'player' ? 'handcuffs' : undefined,
         log: {
           message:
             actor === 'player'
               ? '手铐已使用，庄家下回合被跳过'
-              : '庄家使用了手铐',
+              : '庄家使用了手铐，玩家下回合被跳过',
           type: 'item',
         },
       };
@@ -170,16 +169,16 @@ export function executeItemEffect(ctx: ItemEffectContext): ItemEffectResult | nu
     case 'magnifier': {
       const shell = ctx.currentShell;
       if (!shell) return null;
+      const isPlayer = actor === 'player';
       return {
         consumedItemIds: [item.id],
-        revealedShellIndices: [ctx.currentShellIndex],
+        ...(isPlayer ? { revealedShellIndices: [ctx.currentShellIndex] } : {}),
         sfx: 'item-use',
-        showRevealedShellAt: actor === 'player' ? ctx.currentShellIndex : undefined,
+        showRevealedShellAt: isPlayer ? ctx.currentShellIndex : undefined,
         log: {
-          message:
-            actor === 'player'
-              ? `当前子弹: ${shell.type === 'live' ? '实弹' : '空包弹'}`
-              : '庄家查看了子弹',
+          message: isPlayer
+            ? `当前子弹: ${shell.type === 'live' ? '实弹' : '空包弹'}`
+            : '庄家查看了子弹',
           type: 'item',
         },
       };

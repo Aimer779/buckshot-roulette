@@ -155,7 +155,8 @@ export function useDealerTurn({
         blankCount,
         remainingShells.length,
         s.dealerItems,
-        s.dealerSawActive
+        s.dealerSawActive,
+        s.guillotineTriggered
       );
 
       setTimeout(() => {

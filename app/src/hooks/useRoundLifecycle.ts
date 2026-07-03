@@ -34,6 +34,7 @@ export function useRoundLifecycle({
     setPlayerSawActive,
     setDealerSawActive,
     setSkipDealerTurn,
+    setSkipPlayerTurn,
     setGuillotineTriggered,
     setWinner,
     nextRound,
@@ -81,6 +82,7 @@ export function useRoundLifecycle({
       setPlayerSawActive(false);
       setDealerSawActive(false);
       setSkipDealerTurn(false);
+      setSkipPlayerTurn(false);
       setPhase('ROUND_START');
       addLog(`第 ${round} 回合开始`, 'system');
 
@@ -108,6 +110,7 @@ export function useRoundLifecycle({
       setPlayerSawActive,
       setDealerSawActive,
       setSkipDealerTurn,
+      setSkipPlayerTurn,
       setPhase,
       pushToast,
       schedule,

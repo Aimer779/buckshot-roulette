@@ -71,6 +71,7 @@ export interface GameState {
   dealerSawActive: boolean;
   guillotineTriggered: boolean;
   skipDealerTurn: boolean;
+  skipPlayerTurn: boolean;
   showTutorial: boolean;
   soundEnabled: boolean;
   crtEnabled: boolean;
@@ -98,6 +99,7 @@ export interface GameState {
   setDealerSawActive: (active: boolean) => void;
   setGuillotineTriggered: (triggered: boolean) => void;
   setSkipDealerTurn: (skip: boolean) => void;
+  setSkipPlayerTurn: (skip: boolean) => void;
   nextRound: () => void;
   retryRound: () => void;
   resetGame: () => void;
@@ -208,6 +210,7 @@ const initialState = {
   dealerSawActive: false,
   guillotineTriggered: false,
   skipDealerTurn: false,
+  skipPlayerTurn: false,
   showTutorial: readTutorialPreference(),
   soundEnabled: true,
   crtEnabled: true,
@@ -232,15 +235,18 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   damage: (target, amount) => {
     const s = get();
-    const newHP = Math.max(
-      0,
-      (target === 'player' ? s.playerHP : s.dealerHP) - amount
-    );
+    const currentHP = target === 'player' ? s.playerHP : s.dealerHP;
+    const fatal = s.guillotineTriggered;
+    const finalAmount = fatal ? currentHP : amount;
+    const newHP = Math.max(0, currentHP - finalAmount);
     set({
       ...(target === 'player' ? { playerHP: newHP } : { dealerHP: newHP }),
     });
+    if (fatal) {
+      get().addLog('闸刀触发，伤害致命！', 'damage');
+    }
     get().addLog(
-      `${target === 'player' ? '玩家' : '庄家'}受到 ${amount} 点伤害！`,
+      `${target === 'player' ? '玩家' : '庄家'}受到 ${finalAmount} 点伤害！`,
       'damage'
     );
   },
@@ -295,6 +301,8 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setSkipDealerTurn: (skip) => set({ skipDealerTurn: skip }),
 
+  setSkipPlayerTurn: (skip) => set({ skipPlayerTurn: skip }),
+
   nextRound: () => {
     const s = get();
     const next = s.currentRound + 1;
@@ -318,6 +326,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         playerSawActive: false,
         dealerSawActive: false,
         skipDealerTurn: false,
+        skipPlayerTurn: false,
         phase: 'ROUND_START',
       });
     }
@@ -338,6 +347,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       playerSawActive: false,
       dealerSawActive: false,
       skipDealerTurn: false,
+      skipPlayerTurn: false,
       guillotineTriggered: false,
       phase: 'ROUND_START',
     });

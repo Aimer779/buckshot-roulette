@@ -17,6 +17,7 @@ export interface ApplyItemEffectDeps {
   setPlayerSawActive: (active: boolean) => void;
   setDealerSawActive: (active: boolean) => void;
   setSkipDealerTurn: (skip: boolean) => void;
+  setSkipPlayerTurn: (skip: boolean) => void;
   revealShell: (index: number) => void;
   addLog: (message: string, type: 'info' | 'damage' | 'heal' | 'item' | 'system') => void;
   showItemEffect?: (type: string, duration?: number) => void;
@@ -93,6 +94,10 @@ export function applyItemEffectResult(
     deps.setSkipDealerTurn(true);
   }
 
+  if (result.skipPlayerTurn) {
+    deps.setSkipPlayerTurn(true);
+  }
+
   if (result.log) {
     deps.addLog(result.log.message, result.log.type);
   }
@@ -164,13 +169,19 @@ export function usePlayerItems({
     setPlayerSawActive,
     setDealerSawActive,
     setSkipDealerTurn,
+    setSkipPlayerTurn,
     revealShell,
     addLog,
   } = useGameStore();
 
   const handleUseItem = useCallback(
     (item: Item) => {
-      if (phase !== 'PLAYER_TURN' || isAnimatingRef.current) return;
+      if (
+        phase !== 'PLAYER_TURN' ||
+        isAnimatingRef.current ||
+        useGameStore.getState().skipPlayerTurn
+      )
+        return;
 
       const result = executeItemEffect(buildContext('player', item));
       if (!result) return;
@@ -183,6 +194,7 @@ export function usePlayerItems({
         setPlayerSawActive,
         setDealerSawActive,
         setSkipDealerTurn,
+        setSkipPlayerTurn,
         revealShell,
         addLog,
         showItemEffect,
@@ -203,6 +215,7 @@ export function usePlayerItems({
       setPlayerSawActive,
       setDealerSawActive,
       setSkipDealerTurn,
+      setSkipPlayerTurn,
       revealShell,
       addLog,
       showItemEffect,
@@ -228,6 +241,7 @@ export function usePlayerItems({
         setPlayerSawActive,
         setDealerSawActive,
         setSkipDealerTurn,
+        setSkipPlayerTurn,
         revealShell,
         addLog,
       });
@@ -240,6 +254,7 @@ export function usePlayerItems({
       setPlayerSawActive,
       setDealerSawActive,
       setSkipDealerTurn,
+      setSkipPlayerTurn,
       revealShell,
       addLog,
     ]

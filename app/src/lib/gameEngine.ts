@@ -56,8 +56,19 @@ export function calculateDamage(hasSaw: boolean): number {
 
 // ─── Item Distribution ───────────────────────────────────
 
-const ITEM_POOL: ItemType[] = [
+const PLAYER_ITEM_POOL: ItemType[] = [
   'magnifier',
+  'handcuffs',
+  'cigarette',
+  'beer',
+  'handsaw',
+  'adrenaline',
+  'medicine',
+  'inverter',
+  'phone',
+];
+
+const DEALER_ITEM_POOL: ItemType[] = [
   'handcuffs',
   'cigarette',
   'beer',
@@ -70,7 +81,7 @@ const ITEM_POOL: ItemType[] = [
 
 /**
  * Get random items for a round.
- * Items may repeat.
+ * Items may repeat. Dealer does not receive magnifier until AI can use private info.
  */
 export function distributeItems(round: number): { player: Item[]; dealer: Item[] } {
   const config = ROUND_CONFIG[round] || ROUND_CONFIG[3];
@@ -80,8 +91,8 @@ export function distributeItems(round: number): { player: Item[]; dealer: Item[]
   const dealer: Item[] = [];
 
   for (let i = 0; i < count; i++) {
-    const playerType = ITEM_POOL[Math.floor(Math.random() * ITEM_POOL.length)];
-    const dealerType = ITEM_POOL[Math.floor(Math.random() * ITEM_POOL.length)];
+    const playerType = PLAYER_ITEM_POOL[Math.floor(Math.random() * PLAYER_ITEM_POOL.length)];
+    const dealerType = DEALER_ITEM_POOL[Math.floor(Math.random() * DEALER_ITEM_POOL.length)];
     player.push(makeItem(playerType));
     dealer.push(makeItem(dealerType));
   }
@@ -112,7 +123,8 @@ export function dealerDecision(
   blankCount: number,
   shellsRemaining: number,
   dealerItems: Item[],
-  dealerSawActive: boolean
+  dealerSawActive: boolean,
+  guillotineTriggered: boolean
 ): DealerDecision {
   const total = liveCount + blankCount;
   if (total === 0) {
@@ -124,30 +136,22 @@ export function dealerDecision(
 
   // ── Item usage priorities ────────────────────────────
 
-  // 1. Use cigarette if HP is low (below 50%)
+  // 1. Use cigarette if HP is low (below 50%) and healing is allowed
   const maxHP = dealerHP <= 2 ? 2 : dealerHP <= 4 ? 4 : 6;
-  if (dealerHP <= Math.ceil(maxHP / 2)) {
+  if (!guillotineTriggered && dealerHP <= Math.ceil(maxHP / 2)) {
     const cig = dealerItems.find((i) => i.type === 'cigarette');
     if (cig) {
       return { action: 'use-item', itemId: cig.id, reasoning: 'HP low, use cigarette' };
     }
   }
 
-  // 2. Use magnifier if available and shells remain
-  if (shellsRemaining > 1) {
-    const mag = dealerItems.find((i) => i.type === 'magnifier');
-    if (mag) {
-      return { action: 'use-item', itemId: mag.id, reasoning: 'Check shell with magnifier' };
-    }
-  }
-
-  // 3. Use handcuffs if available
+  // 2. Use handcuffs if available
   const cuffs = dealerItems.find((i) => i.type === 'handcuffs');
   if (cuffs && shellsRemaining > 2) {
     return { action: 'use-item', itemId: cuffs.id, reasoning: 'Restrict player turn' };
   }
 
-  // 4. Use handsaw if live ratio is high
+  // 3. Use handsaw if live ratio is high
   if (!dealerSawActive && liveRatio > 0.5) {
     const saw = dealerItems.find((i) => i.type === 'handsaw');
     if (saw) {
@@ -155,7 +159,7 @@ export function dealerDecision(
     }
   }
 
-  // 5. Use phone to gather intel
+  // 4. Use phone to gather intel
   const phone = dealerItems.find((i) => i.type === 'phone');
   if (phone && shellsRemaining > 2) {
     return { action: 'use-item', itemId: phone.id, reasoning: 'Gather intel with phone' };
