@@ -1,6 +1,6 @@
 import type { Shell, Item, ItemType } from '@/store/gameStore';
-import { makeItem, ROUND_CONFIG } from '@/store/gameStore';
-import { countShells, getRemainingShells } from '@/lib/shellFlow';
+import { makeItem } from '@/lib/itemFactory';
+import { ROUND_CONFIG } from '@/data/roundConfig';
 
 // ─── Shell Loading ───────────────────────────────────────
 
@@ -28,20 +28,6 @@ export function loadShells(round: number): Shell[] {
   }
 
   return shells;
-}
-
-/**
- * Get the count of live shells remaining (including unrevealed)
- */
-export function getLiveShellCount(shells: Shell[], fromIndex: number): number {
-  return countShells(getRemainingShells(shells, fromIndex)).live;
-}
-
-/**
- * Get the count of blank shells remaining (including unrevealed)
- */
-export function getBlankShellCount(shells: Shell[], fromIndex: number): number {
-  return countShells(getRemainingShells(shells, fromIndex)).blank;
 }
 
 // ─── Damage Calculation ──────────────────────────────────
@@ -122,6 +108,7 @@ export function dealerDecision(
   liveCount: number,
   blankCount: number,
   shellsRemaining: number,
+  dealerMaxHP: number,
   dealerItems: Item[],
   dealerSawActive: boolean,
   guillotineTriggered: boolean
@@ -137,7 +124,7 @@ export function dealerDecision(
   // ── Item usage priorities ────────────────────────────
 
   // 1. Use cigarette if HP is low (below 50%) and healing is allowed
-  const maxHP = dealerHP <= 2 ? 2 : dealerHP <= 4 ? 4 : 6;
+  const maxHP = dealerMaxHP;
   if (!guillotineTriggered && dealerHP <= Math.ceil(maxHP / 2)) {
     const cig = dealerItems.find((i) => i.type === 'cigarette');
     if (cig) {

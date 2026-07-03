@@ -154,6 +154,7 @@ export function useDealerTurn({
         liveCount,
         blankCount,
         remainingShells.length,
+        s.dealerMaxHP,
         s.dealerItems,
         s.dealerSawActive,
         s.guillotineTriggered

@@ -1,11 +1,11 @@
 import { create } from 'zustand';
+import { ROUND_CONFIG } from '@/data/roundConfig';
+import { resetItemIdCounter } from '@/lib/itemFactory';
 
 // ─── Types ───────────────────────────────────────────────
 
 export type GamePhase =
-  | 'BOOT'
   | 'TITLE'
-  | 'TUTORIAL'
   | 'ROUND_START'
   | 'PLAYER_TURN'
   | 'ANIMATING'
@@ -114,8 +114,6 @@ export interface GameState {
   setWinner: (winner: 'player' | 'dealer' | null) => void;
 
   // Convenience
-  getLiveCount: () => number;
-  getBlankCount: () => number;
   getCurrentShell: () => Shell | null;
   getRemainingShells: () => Shell[];
 }
@@ -130,11 +128,10 @@ const makeLog = (message: string, type: GameLog['type']): GameLog => ({
   timestamp: Date.now(),
 });
 
-let itemIdCounter = 0;
-export const makeItem = (type: ItemType): Item => ({
-  type,
-  id: `item-${++itemIdCounter}-${Math.random().toString(36).slice(2, 6)}`,
-});
+/** Reset the log id counter (used by resetGame to keep ids compact). */
+export const resetLogIdCounter = () => {
+  logIdCounter = 0;
+};
 
 const TUTORIAL_ROUND_COMPLETED_KEY = 'buckshot-roulette:tutorial-round-completed';
 const ITEM_EFFECT_TIPS_ENABLED_KEY = 'buckshot-roulette:item-effect-tips-enabled';
@@ -169,6 +166,12 @@ const writeItemEffectTipsPreference = (enabled: boolean) => {
 
 const getStartRound = (showTutorial: boolean) => (showTutorial ? 1 : 2);
 
+// Hydrate initial round/HP from the tutorial preference at module load so a
+// returning player (tutorial already completed) starts at round 2 with HP 4
+// even before resetGame runs. Mirrors what resetGame does at runtime.
+const initialStartRound = getStartRound(readTutorialPreference());
+const initialRoundConfig = ROUND_CONFIG[initialStartRound];
+
 // ─── Item Info ───────────────────────────────────────────
 
 export const ITEM_INFO: Record<ItemType, { name: string; description: string; image: string }> = {
@@ -185,27 +188,21 @@ export const ITEM_INFO: Record<ItemType, { name: string; description: string; im
 
 // ─── Default HP by round ─────────────────────────────────
 
-export const ROUND_CONFIG: Record<number, { playerHP: number; dealerHP: number; shellCount: number; itemCount: number }> = {
-  1: { playerHP: 2, dealerHP: 2, shellCount: 3, itemCount: 1 },
-  2: { playerHP: 4, dealerHP: 4, shellCount: 5, itemCount: 2 },
-  3: { playerHP: 6, dealerHP: 6, shellCount: 7, itemCount: 3 },
-};
-
 // ─── Store ───────────────────────────────────────────────
 
 const initialState = {
   phase: 'TITLE' as GamePhase,
   previousPhase: null as GamePhase | null,
-  playerHP: 2,
-  playerMaxHP: 2,
-  dealerHP: 2,
-  dealerMaxHP: 2,
+  playerHP: initialRoundConfig.playerHP,
+  playerMaxHP: initialRoundConfig.playerHP,
+  dealerHP: initialRoundConfig.dealerHP,
+  dealerMaxHP: initialRoundConfig.dealerHP,
   shells: [] as Shell[],
   currentShellIndex: 0,
   playerItems: [] as Item[],
   dealerItems: [] as Item[],
-  currentRound: 1,
-  maxRounds: 3,
+  currentRound: initialStartRound,
+  maxRounds: Math.max(...Object.keys(ROUND_CONFIG).map(Number)),
   playerSawActive: false,
   dealerSawActive: false,
   guillotineTriggered: false,
@@ -236,12 +233,12 @@ export const useGameStore = create<GameState>((set, get) => ({
   damage: (target, amount) => {
     const s = get();
     const currentHP = target === 'player' ? s.playerHP : s.dealerHP;
+    // Clamp negative input; a "damage" of <= 0 is a no-op rather than a heal.
+    const safeAmount = Math.max(0, amount);
     const fatal = s.guillotineTriggered;
-    const finalAmount = fatal ? currentHP : amount;
-    const newHP = Math.max(0, currentHP - finalAmount);
-    set({
-      ...(target === 'player' ? { playerHP: newHP } : { dealerHP: newHP }),
-    });
+    const finalAmount = fatal ? currentHP : safeAmount;
+    // Delegate the [0, max] clamp to setHP so clamp logic lives in one place.
+    get().setHP(target, currentHP - finalAmount);
     if (fatal) {
       get().addLog('闸刀触发，伤害致命！', 'damage');
     }
@@ -253,13 +250,13 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   heal: (target, amount) => {
     const s = get();
-    const maxHP = target === 'player' ? s.playerMaxHP : s.dealerMaxHP;
-    const newHP = Math.min(maxHP, (target === 'player' ? s.playerHP : s.dealerHP) + amount);
-    set({
-      ...(target === 'player' ? { playerHP: newHP } : { dealerHP: newHP }),
-    });
+    const currentHP = target === 'player' ? s.playerHP : s.dealerHP;
+    // Clamp negative input; a "heal" of <= 0 must never silently subtract HP.
+    const safeAmount = Math.max(0, amount);
+    // Delegate the [0, max] clamp to setHP so clamp logic lives in one place.
+    get().setHP(target, currentHP + safeAmount);
     get().addLog(
-      `${target === 'player' ? '玩家' : '庄家'}恢复 ${amount} 点生命值`,
+      `${target === 'player' ? '玩家' : '庄家'}恢复 ${safeAmount} 点生命值`,
       'heal'
     );
   },
@@ -323,10 +320,13 @@ export const useGameStore = create<GameState>((set, get) => ({
         dealerMaxHP: config.dealerHP,
         shells: [],
         currentShellIndex: 0,
+        playerItems: [],
+        dealerItems: [],
         playerSawActive: false,
         dealerSawActive: false,
         skipDealerTurn: false,
         skipPlayerTurn: false,
+        guillotineTriggered: false,
         phase: 'ROUND_START',
       });
     }
@@ -358,6 +358,9 @@ export const useGameStore = create<GameState>((set, get) => ({
     const itemEffectTipsEnabled = readItemEffectTipsPreference();
     const startRound = getStartRound(showTutorial);
     const config = ROUND_CONFIG[startRound];
+    // Reset id counters so log/item ids stay compact across sessions.
+    resetLogIdCounter();
+    resetItemIdCounter();
     set({
       ...initialState,
       showTutorial,
@@ -400,10 +403,6 @@ export const useGameStore = create<GameState>((set, get) => ({
   setWinner: (winner) => set({ winner }),
 
   // Convenience getters
-  getLiveCount: () => get().shells.filter((s) => s.type === 'live').length,
-
-  getBlankCount: () => get().shells.filter((s) => s.type === 'blank').length,
-
   getCurrentShell: () => {
     const s = get();
     if (s.currentShellIndex >= s.shells.length) return null;

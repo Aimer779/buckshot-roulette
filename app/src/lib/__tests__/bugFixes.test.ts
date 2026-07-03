@@ -4,7 +4,8 @@ import {
   type ItemEffectContext,
 } from '@/lib/itemEffects';
 import { dealerDecision } from '@/lib/gameEngine';
-import { useGameStore, makeItem, type ItemType } from '@/store/gameStore';
+import { makeItem } from '@/lib/itemFactory';
+import { useGameStore, type ItemType } from '@/store/gameStore';
 
 function ctx(
   actor: 'player' | 'dealer',
@@ -94,13 +95,13 @@ describe('guillotine blocks healing', () => {
 describe('dealerDecision regressions', () => {
   it('does not choose magnifier', () => {
     const mag = makeItem('magnifier');
-    const decision = dealerDecision(4, 4, 2, 1, 3, [mag], false, false);
+    const decision = dealerDecision(4, 4, 2, 1, 3, 4, [mag], false, false);
     expect(decision.action === 'use-item' && decision.itemId === mag.id).toBe(false);
   });
 
   it('does not choose cigarette while guillotine is active', () => {
     const cig = makeItem('cigarette');
-    const decision = dealerDecision(1, 6, 2, 1, 3, [cig], false, true);
+    const decision = dealerDecision(1, 6, 2, 1, 3, 4, [cig], false, true);
     expect(decision.action === 'use-item' && decision.itemId === cig.id).toBe(false);
   });
 });
