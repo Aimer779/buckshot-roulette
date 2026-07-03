@@ -7,9 +7,9 @@ This repository contains a Buckshot Roulette web game. The runnable app lives in
 - `app/src/pages/`: route-level screens such as title, tutorial, gameplay, and game over.
 - `app/src/components/`: reusable UI and game display components. Shared primitives are in `app/src/components/ui/`; gameplay-specific display pieces are in `app/src/components/gameplay/`; tutorial layout, controls, and page sections are in `app/src/components/tutorial/`.
 - `app/src/hooks/`: gameplay orchestration hooks, including shooting animation, round lifecycle, dealer turns, item use, and page-level controller wiring.
-- `app/src/lib/`: core game utilities. `gameEngine.ts` covers shell loading, damage, item distribution, dealer decisions, and game-over checks; `shotResolution.ts`, `shellFlow.ts`, and `itemEffects.ts` isolate shot, reload, and item-effect rules; `sound.ts` wraps Howler; `tutorialAnimations.ts` holds tutorial Framer Motion variants and easings.
-- `app/src/data/`: static display content only (no game rules or side effects), such as `tutorialContent.ts` for tutorial item details, combos, and survival tips.
-- `app/src/store/`: Zustand game state, domain types, round config, item metadata, and store actions.
+- `app/src/lib/`: core game utilities. `gameEngine.ts` covers shell loading, damage, item distribution, dealer decisions, and game-over checks; `shotResolution.ts`, `shellFlow.ts`, and `itemEffects.ts` isolate shot, reload, and item-effect rules; `itemFactory.ts` creates items and owns the item id counter; `sound.ts` wraps Howler; `tutorialAnimations.ts` holds tutorial Framer Motion variants and easings; `utils.ts` holds shared helpers such as `cn`.
+- `app/src/data/`: mostly static display content (no side effects), such as `tutorialContent.ts` for tutorial item details, combos, and survival tips. The exception is `roundConfig.ts`, which holds round configuration (per-round player/dealer HP, shell count, item count) consumed by the store and engine; `maxRounds` is derived from its keys.
+- `app/src/store/`: Zustand game state, domain types, item metadata (`ITEM_INFO`), and store actions. Round config lives in `app/src/data/roundConfig.ts` and item creation lives in `app/src/lib/itemFactory.ts`.
 - `app/public/`: browser-served visual assets for backgrounds, shotgun, and items.
 - `research/`: gameplay research and mechanic notes.
 - `plans/`, `info.md`, and `plan.md`: implementation plans, project notes, and planning documents.
@@ -22,6 +22,7 @@ Run commands from `app/` unless noted.
 - `rtk pnpm dev`: start the Vite development server, usually at `http://localhost:5173/`.
 - `rtk pnpm build`: type-check with `tsc -b` and build production assets into `app/dist/`.
 - `rtk pnpm lint`: run ESLint across the app.
+- `rtk pnpm test`: run unit tests with Vitest.
 - `rtk pnpm preview`: serve the production build locally for verification.
 
 ## Coding Style & Naming Conventions
@@ -30,7 +31,7 @@ Use TypeScript and React function components. Keep page components in PascalCase
 
 Gameplay changes should preserve the current layering:
 
-- State shape, actions, round config, and item metadata belong in `app/src/store/gameStore.ts`.
+- State shape, actions, domain types, and item metadata belong in `app/src/store/gameStore.ts`. Round configuration (per-round HP/shell/item counts) belongs in `app/src/data/roundConfig.ts`; item creation and id counters belong in `app/src/lib/itemFactory.ts`.
 - Pure or mostly pure rule calculations belong in `app/src/lib/`.
 - Turn sequencing, timers, navigation side effects, and orchestration belong in `app/src/hooks/`.
 - `GameplayScreen.tsx` should remain a route-level composition file; visual sections should stay in `app/src/components/gameplay/`.
@@ -38,7 +39,7 @@ Gameplay changes should preserve the current layering:
 
 ## Testing Guidelines
 
-There is currently no dedicated test script or test framework configured. Before opening changes, run `rtk pnpm lint` and `rtk pnpm build` from `app/`. For gameplay logic changes, manually exercise the affected flow in `rtk pnpm dev`, including shell reloads, known blank/live tail behavior, round transitions, item effects, handcuff skips, saw damage, dealer AI turns, and game-over states. If tests are added later, colocate them near the code they cover and add a package script.
+Unit tests run on Vitest via `rtk pnpm test`. Tests are colocated in `__tests__/` directories next to the code they cover (e.g. `app/src/lib/__tests__/bugFixes.test.ts`); add new test files alongside their subject. When changing gameplay logic, run `rtk pnpm lint`, `rtk pnpm build`, and `rtk pnpm test` before opening changes, then manually exercise the affected flow in `rtk pnpm dev`, including shell reloads, known blank/live tail behavior, round transitions, item effects, handcuff skips, saw damage, dealer AI turns, and game-over states. Note that some store tests set HP via `useGameStore.setState` without syncing `playerMaxHP`/`dealerMaxHP`, so prefer explicit maxHP in new fixtures to avoid clamp surprises.
 
 ## Commit & Pull Request Guidelines
 
@@ -50,4 +51,4 @@ Pull requests should include a concise summary, validation commands run, linked 
 
 ## Agent-Specific Instructions
 
-Do not overwrite an existing `AGENTS.md`. Use `rg` for search. If `rtk` is available, prefix `git`, `gh`, `pnpm`, and supported test commands with `rtk` to keep command output compact. Prefer `pnpm` for dependency operations and ask for confirmation before adding production dependencies.
+Do not overwrite an existing `AGENTS.md`. Use `rg` for search. If `rtk` is available, prefix `git`, `gh`, `pnpm`, and supported test commands with `rtk` to keep command output compact. Prefer `pnpm` for dependency operations and ask for confirmation before adding production dependencies. Note: when run from `app/` (the usual working directory for build/test commands), `rtk git` reinterprets paths relative to the repo root and produces spurious `app/app/src/...` errors — for git operations prefer plain `git` with paths relative to `app/`, or run from the repo root.
