@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { ROUND_CONFIG } from '@/data/roundConfig';
 import { resetItemIdCounter } from '@/lib/itemFactory';
+import {
+  DEFAULT_DEALER_STRATEGY_ID,
+} from '@/lib/dealerStrategies';
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -78,6 +81,7 @@ export interface GameState {
   musicVolume: number;
   sfxVolume: number;
   itemEffectTipsEnabled: boolean;
+  dealerStrategyId: string;
 
   // Game log
   logs: GameLog[];
@@ -111,6 +115,7 @@ export interface GameState {
   setMusicVolume: (volume: number) => void;
   setSfxVolume: (volume: number) => void;
   setItemEffectTipsEnabled: (enabled: boolean) => void;
+  setDealerStrategyId: (id: string) => void;
   setWinner: (winner: 'player' | 'dealer' | null) => void;
 
   // Convenience
@@ -135,6 +140,7 @@ export const resetLogIdCounter = () => {
 
 const TUTORIAL_ROUND_COMPLETED_KEY = 'buckshot-roulette:tutorial-round-completed';
 const ITEM_EFFECT_TIPS_ENABLED_KEY = 'buckshot-roulette:item-effect-tips-enabled';
+const DEALER_STRATEGY_ID_KEY = 'buckshot-roulette:dealer-strategy-id';
 
 const readTutorialPreference = () => {
   if (typeof window === 'undefined') return true;
@@ -162,6 +168,17 @@ const writeItemEffectTipsPreference = (enabled: boolean) => {
   } else {
     window.localStorage.setItem(ITEM_EFFECT_TIPS_ENABLED_KEY, 'false');
   }
+};
+
+const readDealerStrategyId = () => {
+  if (typeof window === 'undefined') return DEFAULT_DEALER_STRATEGY_ID;
+  const stored = window.localStorage.getItem(DEALER_STRATEGY_ID_KEY);
+  return stored ?? DEFAULT_DEALER_STRATEGY_ID;
+};
+
+const writeDealerStrategyId = (id: string) => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(DEALER_STRATEGY_ID_KEY, id);
 };
 
 const getStartRound = (showTutorial: boolean) => (showTutorial ? 1 : 2);
@@ -214,6 +231,7 @@ const initialState = {
   musicVolume: 0.7,
   sfxVolume: 0.8,
   itemEffectTipsEnabled: readItemEffectTipsPreference(),
+  dealerStrategyId: readDealerStrategyId(),
   logs: [] as GameLog[],
   winner: null as 'player' | 'dealer' | null,
 };
@@ -356,6 +374,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   resetGame: () => {
     const showTutorial = readTutorialPreference();
     const itemEffectTipsEnabled = readItemEffectTipsPreference();
+    const dealerStrategyId = readDealerStrategyId();
     const startRound = getStartRound(showTutorial);
     const config = ROUND_CONFIG[startRound];
     // Reset id counters so log/item ids stay compact across sessions.
@@ -365,6 +384,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       ...initialState,
       showTutorial,
       itemEffectTipsEnabled,
+      dealerStrategyId,
       currentRound: startRound,
       playerHP: config.playerHP,
       playerMaxHP: config.playerHP,
@@ -398,6 +418,11 @@ export const useGameStore = create<GameState>((set, get) => ({
   setItemEffectTipsEnabled: (enabled) => {
     writeItemEffectTipsPreference(enabled);
     set({ itemEffectTipsEnabled: enabled });
+  },
+
+  setDealerStrategyId: (id) => {
+    writeDealerStrategyId(id);
+    set({ dealerStrategyId: id });
   },
 
   setWinner: (winner) => set({ winner }),

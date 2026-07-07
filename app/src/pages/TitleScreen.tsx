@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Volume2, VolumeX, X, Settings, HelpCircle, Play, Check } from 'lucide-react';
 import { useGameStore } from '@/store/gameStore';
 import { playSFX, playBGM } from '@/lib/sound';
+import { DEALER_STRATEGIES, getStrategyById } from '@/lib/dealerStrategies';
 
 // ─── Dust Particle Component ─────────────────────────────
 
@@ -160,6 +161,8 @@ function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
     setShowTutorial,
     itemEffectTipsEnabled,
     setItemEffectTipsEnabled,
+    dealerStrategyId,
+    setDealerStrategyId,
   } = useGameStore();
 
   return (
@@ -261,6 +264,38 @@ function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                   playSFX('shotgun-click', 0.3);
                 }}
               />
+            </div>
+
+            {/* Dealer strategy selector */}
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-col">
+                <span className="font-chinese text-base" style={{ color: 'var(--text-primary)' }}>
+                  庄家风格
+                </span>
+                <span className="font-chinese text-xs" style={{ color: 'var(--text-dim)' }}>
+                  {getStrategyById(dealerStrategyId).description}
+                </span>
+              </div>
+              <select
+                value={dealerStrategyId}
+                onChange={(e) => {
+                  setDealerStrategyId(e.target.value);
+                  playSFX('shotgun-click', 0.3);
+                }}
+                aria-label="选择庄家风格"
+                className="w-full p-2 rounded-lg font-chinese text-sm border focus:outline-none focus:ring-2"
+                style={{
+                  backgroundColor: 'var(--bg-elevated)',
+                  borderColor: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                {DEALER_STRATEGIES.map((strategy) => (
+                  <option key={strategy.id} value={strategy.id}>
+                    {strategy.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Music volume */}

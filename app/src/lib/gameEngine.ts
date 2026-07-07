@@ -1,6 +1,7 @@
 import type { Shell, Item, ItemType } from '@/store/gameStore';
 import { makeItem } from '@/lib/itemFactory';
 import { ROUND_CONFIG } from '@/data/roundConfig';
+import { balancedStrategy } from '@/lib/dealerStrategies';
 
 // ─── Shell Loading ───────────────────────────────────────
 
@@ -95,12 +96,9 @@ export interface DealerDecision {
 }
 
 /**
- * Dealer AI decision logic.
- * The dealer follows shell ratio awareness:
- * - If more blanks than live: likely to shoot self
- * - If more live than blanks: likely to shoot player
- * - With saw: more aggressive
- * - Low HP: more cautious, prioritize healing items
+ * @deprecated Use the {@link DealerStrategy} abstraction in
+ * `app/src/lib/dealerStrategies` instead. This function is kept as a thin
+ * compatibility wrapper around the default balanced strategy.
  */
 export function dealerDecision(
   dealerHP: number,
@@ -113,64 +111,17 @@ export function dealerDecision(
   dealerSawActive: boolean,
   guillotineTriggered: boolean
 ): DealerDecision {
-  const total = liveCount + blankCount;
-  if (total === 0) {
-    return { action: 'shoot-player', reasoning: 'No shells remaining' };
-  }
-
-  const liveRatio = liveCount / total;
-  const blankRatio = blankCount / total;
-
-  // ── Item usage priorities ────────────────────────────
-
-  // 1. Use cigarette if HP is low (below 50%) and healing is allowed
-  const maxHP = dealerMaxHP;
-  if (!guillotineTriggered && dealerHP <= Math.ceil(maxHP / 2)) {
-    const cig = dealerItems.find((i) => i.type === 'cigarette');
-    if (cig) {
-      return { action: 'use-item', itemId: cig.id, reasoning: 'HP low, use cigarette' };
-    }
-  }
-
-  // 2. Use handcuffs if available
-  const cuffs = dealerItems.find((i) => i.type === 'handcuffs');
-  if (cuffs && shellsRemaining > 2) {
-    return { action: 'use-item', itemId: cuffs.id, reasoning: 'Restrict player turn' };
-  }
-
-  // 3. Use handsaw if live ratio is high
-  if (!dealerSawActive && liveRatio > 0.5) {
-    const saw = dealerItems.find((i) => i.type === 'handsaw');
-    if (saw) {
-      return { action: 'use-item', itemId: saw.id, reasoning: 'High live ratio, prepare saw' };
-    }
-  }
-
-  // 4. Use phone to gather intel
-  const phone = dealerItems.find((i) => i.type === 'phone');
-  if (phone && shellsRemaining > 2) {
-    return { action: 'use-item', itemId: phone.id, reasoning: 'Gather intel with phone' };
-  }
-
-  // ── Shooting decision ────────────────────────────────
-
-  // If blank ratio is significantly higher, shoot self
-  if (blankRatio > liveRatio + 0.15) {
-    return { action: 'shoot-self', reasoning: 'More blanks likely, shoot self' };
-  }
-
-  // If live ratio is higher, shoot player
-  if (liveRatio > blankRatio + 0.15) {
-    return { action: 'shoot-player', reasoning: 'More live shells, shoot player' };
-  }
-
-  // Close call: use randomness with slight bias
-  // Dealer slightly prefers shooting player when uncertain
-  const random = Math.random();
-  if (random < 0.45) {
-    return { action: 'shoot-self', reasoning: 'Uncertain, taking risk on self' };
-  }
-  return { action: 'shoot-player', reasoning: 'Uncertain, shooting player' };
+  return balancedStrategy.decide({
+    dealerHP,
+    playerHP: _playerHP,
+    dealerMaxHP,
+    liveCount,
+    blankCount,
+    shellsRemaining,
+    dealerItems,
+    dealerSawActive,
+    guillotineTriggered,
+  });
 }
 
 // ─── Round helpers ───────────────────────────────────────

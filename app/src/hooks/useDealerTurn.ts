@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useGameStore } from '@/store/gameStore';
-import { dealerDecision } from '@/lib/gameEngine';
+import { getStrategyById, resolveDealerTurnDecision, type DealerContext } from '@/lib/dealerStrategies';
 import { countShells, getRemainingShells } from '@/lib/shellFlow';
 import { resolveShotOutcome, type ShotOutcome } from '@/lib/shotResolution';
 import type { GamePhase, Item } from '@/store/gameStore';
@@ -24,6 +24,22 @@ interface UseDealerTurnOptions {
   applyShotOutcome: (outcome: ShotOutcome) => void;
 }
 
+function buildDealerContext(s: ReturnType<typeof useGameStore.getState>): DealerContext {
+  const remaining = getRemainingShells(s.shells, s.currentShellIndex);
+  const counts = countShells(remaining);
+  return {
+    dealerHP: s.dealerHP,
+    playerHP: s.playerHP,
+    dealerMaxHP: s.dealerMaxHP,
+    liveCount: counts.live,
+    blankCount: counts.blank,
+    shellsRemaining: remaining.length,
+    dealerItems: s.dealerItems,
+    dealerSawActive: s.dealerSawActive,
+    guillotineTriggered: s.guillotineTriggered,
+  };
+}
+
 /**
  * Dealer turn: handcuff skip, reload gate, thinking delay, item use, and shooting.
  * Blank self-shot extra turn is preserved by setting phase back to DEALER_TURN,
@@ -44,10 +60,7 @@ export function useDealerTurn({
 }: UseDealerTurnOptions) {
   const [dealerThinking, setDealerThinking] = useState(false);
 
-  const executeDealerShoot = useCallback(async () => {
-    const s = useGameStore.getState();
-    const remainingShells = getRemainingShells(s.shells, s.currentShellIndex);
-
+  const executeDealerShoot = useCallback(async (target: 'self' | 'dealer') => {
     if (reloadIfEmptyOrAllBlank().reloaded) {
       setTimeout(() => {
         setPhase('PLAYER_TURN');
@@ -56,18 +69,15 @@ export function useDealerTurn({
       return;
     }
 
-    const { live: liveCount, blank: blankCount } = countShells(remainingShells);
+    const shootTarget: ShootAnimationTarget = target === 'self' ? 'self' : 'dealer';
+    const outcomeTarget = target === 'self' ? 'dealer' : 'player';
 
-    // Re-decides target by shell ratio (not dealerDecision); preserved intentionally.
-    const blankRatio = blankCount / (liveCount + blankCount);
-    const shootSelf = blankRatio > 0.5;
-
-    const shellType = await shoot(shootSelf ? 'self' : 'dealer');
+    const shellType = await shoot(shootTarget);
     if (!shellType) return;
 
     const outcome = resolveShotOutcome({
       actor: 'dealer',
-      target: shootSelf ? 'dealer' : 'player',
+      target: outcomeTarget,
       shellType,
       actorSawActive: useGameStore.getState().dealerSawActive,
     });
@@ -145,34 +155,23 @@ export function useDealerTurn({
       setDealerThinking(true);
       addLog('庄家思考中...', 'info');
 
-      const remainingShells = getRemainingShells(s.shells, s.currentShellIndex);
-      const { live: liveCount, blank: blankCount } = countShells(remainingShells);
-
-      const decision = dealerDecision(
-        s.dealerHP,
-        s.playerHP,
-        liveCount,
-        blankCount,
-        remainingShells.length,
-        s.dealerMaxHP,
-        s.dealerItems,
-        s.dealerSawActive,
-        s.guillotineTriggered
-      );
+      const strategy = getStrategyById(s.dealerStrategyId);
+      const ctx = buildDealerContext(s);
+      const turnDecision = resolveDealerTurnDecision(strategy, ctx);
 
       setTimeout(() => {
         setDealerThinking(false);
 
-        if (decision.action === 'use-item' && decision.itemId) {
-          const item = s.dealerItems.find((i) => i.id === decision.itemId);
+        if (turnDecision.action === 'use-item') {
+          const item = s.dealerItems.find((i) => i.id === turnDecision.itemId);
           if (item) {
             applyDealerItem(item);
-            setTimeout(() => executeDealerShoot(), 1200);
+            setTimeout(() => executeDealerShoot(turnDecision.shootTarget), 1200);
           } else {
-            executeDealerShoot();
+            executeDealerShoot(turnDecision.shootTarget);
           }
         } else {
-          executeDealerShoot();
+          executeDealerShoot(turnDecision.target);
         }
       }, 2000 + Math.random() * 1000);
     }, 600);
