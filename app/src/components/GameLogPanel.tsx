@@ -30,7 +30,8 @@ const typeGlow: Record<GameLog['type'], string> = {
 /**
  * GameLogPanel
  *
- * Wide screens (md+): a collapsible fixed panel on the left side of the game screen.
+ * Wide screens (md+): a minimal left-edge handle (8px) that opens a floating
+ * 220px drawer overlay; collapsed by default with an unread dot on the handle.
  * Narrow screens: a floating bottom-left button that opens a left-side Sheet drawer.
  */
 export default function GameLogPanel() {
@@ -53,6 +54,11 @@ export default function GameLogPanel() {
     if (!collapsed) markLogsRead();
   }, [collapsed, markLogsRead]);
 
+  // Mark logs as read whenever the narrow-screen Sheet is opened.
+  useEffect(() => {
+    if (sheetOpen) markLogsRead();
+  }, [sheetOpen, markLogsRead]);
+
   const hasLogs = logs.length > 0;
   const unreadBadge = unreadCount >= 100 ? '99+' : String(unreadCount);
 
@@ -63,7 +69,7 @@ export default function GameLogPanel() {
         return (
           <div
             key={log.id}
-            className="px-2.5 py-1.5 rounded text-xs leading-snug break-words transition-colors"
+            className="px-2.5 py-1.5 rounded text-xs leading-snug break-words transition-all"
             style={{
               borderLeft: `3px solid ${typeColor[log.type]}`,
               backgroundColor: isUnread
