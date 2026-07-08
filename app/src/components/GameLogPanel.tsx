@@ -30,7 +30,7 @@ const typeGlow: Record<GameLog['type'], string> = {
 /**
  * GameLogPanel
  *
- * Wide screens (md+): a minimal left-edge handle (8px) that opens a floating
+ * Wide screens (md+): a minimal left-edge handle (24px) that opens a floating
  * 220px drawer overlay; collapsed by default with an unread dot on the handle.
  * Narrow screens: a floating bottom-left button that opens a left-side Sheet drawer.
  */
@@ -155,24 +155,24 @@ export default function GameLogPanel() {
           )}
         </AnimatePresence>
 
-        {/* Minimal left-edge handle: ~8px wide, vertically centered */}
+        {/* Minimal left-edge handle: ~24px wide, vertically centered */}
         <button
           onClick={() => setCollapsed((c) => !c)}
-          className="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-16 flex items-center justify-center transition-colors hover:bg-white/10 border-r border-white/5"
+          className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-28 flex items-center justify-center transition-colors hover:bg-white/10 border-r border-white/5"
           style={{ backgroundColor: 'rgba(10, 10, 15, 0.6)' }}
           title={collapsed ? '展开战斗记录' : '收起战斗记录'}
           aria-label={collapsed ? '展开战斗记录' : '收起战斗记录'}
         >
           {unreadCount > 0 && (
             <span
-              className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full"
+              className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full"
               style={{ backgroundColor: 'var(--accent-gold)' }}
             />
           )}
           {collapsed ? (
-            <PanelLeftOpen className="w-3 h-3" style={{ color: 'var(--text-secondary)' }} />
+            <PanelLeftOpen className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
           ) : (
-            <PanelLeftClose className="w-3 h-3" style={{ color: 'var(--text-secondary)' }} />
+            <PanelLeftClose className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
           )}
         </button>
       </div>
