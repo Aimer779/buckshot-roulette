@@ -85,6 +85,8 @@ export interface GameState {
 
   // Game log
   logs: GameLog[];
+  // Id of the newest log the player has seen; null = all unread.
+  lastReadLogId: string | null;
 
   // Winner
   winner: 'player' | 'dealer' | null;
@@ -108,6 +110,7 @@ export interface GameState {
   retryRound: () => void;
   resetGame: () => void;
   addLog: (message: string, type: GameLog['type']) => void;
+  markLogsRead: () => void;
   clearLogs: () => void;
   setShowTutorial: (show: boolean) => void;
   setSoundEnabled: (enabled: boolean) => void;
@@ -233,6 +236,7 @@ const initialState = {
   itemEffectTipsEnabled: readItemEffectTipsPreference(),
   dealerStrategyId: readDealerStrategyId(),
   logs: [] as GameLog[],
+  lastReadLogId: null as string | null,
   winner: null as 'player' | 'dealer' | null,
 };
 
@@ -400,7 +404,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       logs: [makeLog(message, type), ...s.logs].slice(0, 100),
     })),
 
-  clearLogs: () => set({ logs: [] }),
+  markLogsRead: () => set({ lastReadLogId: get().logs[0]?.id ?? null }),
+
+  clearLogs: () => set({ logs: [], lastReadLogId: null }),
 
   setShowTutorial: (show) => {
     writeTutorialPreference(show);
