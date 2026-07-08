@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ScrollText, PanelLeftOpen, PanelLeftClose, Trash2 } from 'lucide-react';
 import { useGameStore } from '@/store/gameStore';
@@ -9,7 +9,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { cn } from '@/lib/utils';
 import type { GameLog } from '@/store/gameStore';
 
 const typeColor: Record<GameLog['type'], string> = {
@@ -31,33 +30,60 @@ const typeGlow: Record<GameLog['type'], string> = {
 /**
  * GameLogPanel
  *
- * Wide screens (md+): a collapsible fixed panel on the left side of the game screen.
+ * Wide screens (md+): a minimal left-edge handle (24px) that opens a floating
+ * 220px drawer overlay; collapsed by default with an unread dot on the handle.
  * Narrow screens: a floating bottom-left button that opens a left-side Sheet drawer.
  */
 export default function GameLogPanel() {
   const logs = useGameStore((s) => s.logs);
   const clearLogs = useGameStore((s) => s.clearLogs);
+  const lastReadLogId = useGameStore((s) => s.lastReadLogId);
+  const markLogsRead = useGameStore((s) => s.markLogsRead);
   const [collapsed, setCollapsed] = useState(true);
   const [sheetOpen, setSheetOpen] = useState(false);
 
+  // Unread count is derived from the id anchor: logs newer than lastReadLogId.
+  // findIndex returns -1 when the anchor is gone (e.g. old logs sliced off) → all unread.
+  const unreadCount = useMemo(() => {
+    const idx = logs.findIndex((l) => l.id === lastReadLogId);
+    return idx === -1 ? logs.length : idx;
+  }, [logs, lastReadLogId]);
+
+  // Mark logs as read whenever the wide-screen panel is expanded.
+  useEffect(() => {
+    if (!collapsed) markLogsRead();
+  }, [collapsed, markLogsRead]);
+
+  // Mark logs as read whenever the narrow-screen Sheet is opened.
+  useEffect(() => {
+    if (sheetOpen) markLogsRead();
+  }, [sheetOpen, markLogsRead]);
+
   const hasLogs = logs.length > 0;
+  const unreadBadge = unreadCount >= 100 ? '99+' : String(unreadCount);
 
   const logList = useMemo(
     () =>
-      logs.map((log) => (
-        <div
-          key={log.id}
-          className="px-2.5 py-1.5 rounded text-xs leading-snug break-words"
-          style={{
-            borderLeft: `3px solid ${typeColor[log.type]}`,
-            backgroundColor: typeGlow[log.type],
-            color: 'var(--text-primary)',
-          }}
-        >
-          {log.message}
-        </div>
-      )),
-    [logs]
+      logs.map((log, i) => {
+        const isUnread = i < unreadCount;
+        return (
+          <div
+            key={log.id}
+            className="px-2.5 py-1.5 rounded text-xs leading-snug break-words transition-all"
+            style={{
+              borderLeft: `3px solid ${typeColor[log.type]}`,
+              backgroundColor: isUnread
+                ? typeGlow[log.type]
+                : 'rgba(255, 255, 255, 0.02)',
+              color: 'var(--text-primary)',
+              boxShadow: isUnread ? 'inset 0 0 0 1px rgba(212, 165, 32, 0.35)' : 'none',
+            }}
+          >
+            {log.message}
+          </div>
+        );
+      }),
+    [logs, unreadCount]
   );
 
   const header = (
@@ -107,7 +133,7 @@ export default function GameLogPanel() {
 
   return (
     <>
-      {/* ─── Wide screen: left floating drawer overlay ─── */}
+      {/* ─── Wide screen: left edge handle + floating drawer overlay ─── */}
       <div className="hidden md:flex absolute left-0 top-0 bottom-0 z-20">
         <AnimatePresence initial={false} mode="popLayout">
           {!collapsed && (
@@ -129,15 +155,20 @@ export default function GameLogPanel() {
           )}
         </AnimatePresence>
 
+        {/* Minimal left-edge handle: ~24px wide, vertically centered */}
         <button
           onClick={() => setCollapsed((c) => !c)}
-          className={cn(
-            'h-full flex flex-col items-center justify-start py-3 transition-colors hover:bg-white/5 border-r border-white/5',
-            collapsed ? 'w-10' : 'w-8'
-          )}
+          className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-28 flex items-center justify-center transition-colors hover:bg-white/10 border-r border-white/5"
           style={{ backgroundColor: 'rgba(10, 10, 15, 0.6)' }}
           title={collapsed ? '展开战斗记录' : '收起战斗记录'}
+          aria-label={collapsed ? '展开战斗记录' : '收起战斗记录'}
         >
+          {unreadCount > 0 && (
+            <span
+              className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full"
+              style={{ backgroundColor: 'var(--accent-gold)' }}
+            />
+          )}
           {collapsed ? (
             <PanelLeftOpen className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
           ) : (
@@ -159,7 +190,7 @@ export default function GameLogPanel() {
             >
               <ScrollText className="w-4 h-4" style={{ color: 'var(--accent-gold)' }} />
               <span className="font-chinese text-sm">战斗记录</span>
-              {hasLogs && (
+              {unreadCount > 0 && (
                 <span
                   className="font-mono-data text-xs px-1.5 py-0.5 rounded-full"
                   style={{
@@ -167,7 +198,7 @@ export default function GameLogPanel() {
                     backgroundColor: 'var(--accent-gold)',
                   }}
                 >
-                  {logs.length}
+                  {unreadBadge}
                 </span>
               )}
             </button>
