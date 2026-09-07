@@ -9,6 +9,31 @@ const command = (rooms: Rooms, client: JoinResult, action: RoomAction) => {
 };
 
 describe('bounded reconnection', () => {
+  it.each(['round-end', 'finished'] as const)('keeps only completed match winners when both players abandon at %s', async phase => {
+    let now = 1_000_000;
+    const rooms = new Rooms(() => now);
+    const host = await rooms.create('host', 'secret');
+    const guest = await rooms.join(host.session.code, 'guest', 'secret');
+    const clients = [host, guest];
+    command(rooms, host, { type: 'ready', ready: true });
+    command(rooms, guest, { type: 'ready', ready: true });
+    let view = command(rooms, host, { type: 'start' });
+    for (let moves = 0; moves < 200 && view.phase !== phase; moves++) {
+      if (view.phase === 'round-end') {
+        command(rooms, host, { type: 'next' });
+        view = command(rooms, guest, { type: 'next' });
+      } else view = command(rooms, clients[view.turn], { type: 'shoot', target: 'self' });
+    }
+    expect(view.phase).toBe(phase);
+    expect(view.winner).not.toBeNull();
+    const scores = view.players.map(p => p?.score);
+    now += HEARTBEAT_MS + RECONNECT_MS;
+    const ended = rooms.read(host.session.code, host.session.token);
+    expect(ended.closure).toMatchObject({ reason: 'connection-timeout', actor: null });
+    expect(ended.winner).toBe(phase === 'finished' ? view.winner : null);
+    expect(ended.players.map(p => p?.score)).toEqual(scores);
+  });
+
   it('ends an abandoned match despite ongoing opponent heartbeats and prevents late revival', async () => {
     let now = 1_000_000;
     const rooms = new Rooms(() => now);

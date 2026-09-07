@@ -46,8 +46,9 @@ export function recordEvent(room: Room, type: RoomEvent['type'], actor: Seat | n
 
 export function closeRoom(room: Room, reason: RoomClosure['reason'], actor: Seat | null, message: string, now: number) {
   if (room.closure) return;
-  if ((room.match.phase === 'playing' || room.match.phase === 'round-end') && actor !== null) {
-    room.match.winner = actor === 0 ? 1 : 0;
+  if (room.match.phase === 'playing' || room.match.phase === 'round-end') {
+    // A round winner is not a match winner when both players abandon the match.
+    room.match.winner = actor === null ? null : actor === 0 ? 1 : 0;
   }
   room.closure = { reason, actor, message, at: now };
   room.match.phase = 'closed';
