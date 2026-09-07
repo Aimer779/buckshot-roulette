@@ -25,11 +25,22 @@ async function setup(trustedProxies = '') {
     const response = await fetch(base + path, { method,
       headers: { 'Content-Type': 'application/json', ...headers, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: body ? JSON.stringify(body) : undefined });
-    return { status: response.status, body: await response.json() };
+    return { status: response.status, body: response.status === 204 ? null : await response.json() };
   };
 }
 
 describe('online HTTP contract', () => {
+  it('returns an empty response for an unchanged authenticated snapshot', async () => {
+    const request = await setup();
+    const created = (await request('', 'POST', { name: 'host', password: 'secret' })).body as JoinResult;
+    const { code, token } = created.session;
+    const path = `/${code}?since=${created.room.revision}`;
+    expect(await request(path, 'GET', undefined, token)).toEqual({ status: 204, body: null });
+    expect((await request(path, 'GET', undefined, 'wrong')).status).toBe(401);
+    await request(`/${code}/action`, 'POST', { revision: created.room.revision, action: { type: 'ready', ready: true } }, token);
+    expect((await request(path, 'GET', undefined, token)).body.players[0].ready).toBe(true);
+  });
+
   it('keeps separate limits behind a trusted proxy, while still limiting each client', async () => {
     const request = await setup('127.0.0.1');
     for (let i = 1; i <= 21; i++) {

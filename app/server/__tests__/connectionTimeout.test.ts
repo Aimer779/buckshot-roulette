@@ -20,7 +20,9 @@ describe('bounded reconnection', () => {
     now += HEARTBEAT_MS + 1;
     const disconnected = rooms.read(host.session.code, host.session.token);
     expect(disconnected.reconnectUntil[1]).toBe(1_000_000 + HEARTBEAT_MS + RECONNECT_MS);
-    now += RECONNECT_MS - 1;
+    now += RECONNECT_MS - 2;
+    expect(rooms.read(host.session.code, host.session.token).phase).toBe('playing');
+    now++;
     const ended = rooms.read(guest.session.code, guest.session.token);
     expect(ended.phase).toBe('closed');
     expect(ended.winner).toBe(0);

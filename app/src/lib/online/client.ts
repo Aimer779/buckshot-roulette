@@ -1,4 +1,4 @@
-import type { RoomSession } from './protocol';
+import type { RoomSession, RoomView } from './protocol';
 
 export class OnlineError extends Error {
   status: number;
@@ -8,21 +8,35 @@ export class OnlineError extends Error {
   }
 }
 
-export async function requestOnline<T>(path: string, method = 'GET', body?: unknown, session?: RoomSession): Promise<T> {
-  const response = await fetch(`/api/rooms${path}`, {
+async function fetchOnline(path: string, method: string, body?: unknown, session?: RoomSession, signal?: AbortSignal) {
+  const timeout = AbortSignal.timeout(8000);
+  return fetch(`/api/rooms${path}`, {
     method,
     headers: { ...(body ? { 'Content-Type': 'application/json' } : {}),
       ...(session ? { Authorization: `Bearer ${session.token}` } : {}) },
     body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(8000),
+    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     cache: 'no-store',
   });
+}
+
+async function decodeResponse<T>(response: Response): Promise<T> {
   if (!response.headers.get('content-type')?.includes('application/json')) {
     throw new OnlineError('联机服务未启动，请使用支持联机的游戏服务地址。', 503);
   }
   const result = await response.json();
   if (!response.ok) throw new OnlineError(result.error ?? '请求失败。', response.status);
   return result as T;
+}
+
+export async function requestOnline<T>(path: string, method = 'GET', body?: unknown, session?: RoomSession): Promise<T> {
+  return decodeResponse<T>(await fetchOnline(path, method, body, session));
+}
+
+export async function pollOnlineRoom(session: RoomSession, since: number | undefined, signal: AbortSignal): Promise<RoomView | null> {
+  const query = since === undefined ? '' : `?since=${since}`;
+  const response = await fetchOnline(`/${session.code}${query}`, 'GET', undefined, session, signal);
+  return response.status === 204 ? null : decodeResponse<RoomView>(response);
 }
 
 const KEY = 'buckshot-online-session';

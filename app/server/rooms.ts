@@ -21,6 +21,7 @@ export class Rooms {
   private rooms = new Map<string, Room>();
   private entries = new EntryRequests();
   private passwordJobs = 0;
+  private nextSweepAt = 0;
   private now: () => number;
   constructor(now = Date.now) { this.now = now; }
 
@@ -45,13 +46,19 @@ export class Rooms {
   }
 
   prune() {
+    if (this.now() < this.nextSweepAt) return;
+    this.nextSweepAt = this.now() + 10_000;
     for (const [code, room] of this.rooms) {
-      expireConnections(room, this.now());
-      if (room.closure) {
-        if (this.now() - room.closure.at >= CLOSED_RETENTION_MS) this.rooms.delete(code);
-      } else if (this.now() - Math.max(...room.seen) > ROOM_IDLE_MS) {
-        closeRoom(room, 'expired', null, '房间因长时间无人在线而关闭。', this.now());
-      }
+      this.expire(code, room);
+    }
+  }
+
+  private expire(code: string, room: Room) {
+    expireConnections(room, this.now());
+    if (room.closure) {
+      if (this.now() - room.closure.at >= CLOSED_RETENTION_MS) this.rooms.delete(code);
+    } else if (this.now() - Math.max(...room.seen) > ROOM_IDLE_MS) {
+      closeRoom(room, 'expired', null, '房间因长时间无人在线而关闭。', this.now());
     }
   }
 
@@ -92,6 +99,9 @@ export class Rooms {
     this.prune();
     const room = this.rooms.get(code);
     if (!room) throw new RoomError('房间不存在或已关闭。', 404);
+    // Per-room deadlines remain exact even between global cleanup passes.
+    this.expire(code, room);
+    if (!this.rooms.has(code)) throw new RoomError('房间不存在或已关闭。', 404);
     return room;
   }
 
@@ -112,6 +122,11 @@ export class Rooms {
   read(code: string, token: string): RoomView {
     const { room, seat } = this.authenticate(code, token);
     return this.view(room, seat);
+  }
+
+  poll(code: string, token: string, since?: number): RoomView | null {
+    const { room, seat } = this.authenticate(code, token);
+    return room.revision === since ? null : this.view(room, seat);
   }
 
   action(code: string, token: string, revision: number, action: RoomAction) {

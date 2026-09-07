@@ -48,7 +48,8 @@ export function createApiHandler(rooms = new Rooms(), options: { trustedProxies?
       // No CORS: the browser accesses the API through the same origin as the game.
       const origin = request.headers.origin;
       if (origin && new URL(origin).host !== request.headers.host) throw new RoomError('不允许跨站请求。', 403);
-      const path = new URL(request.url ?? '/', 'http://localhost').pathname;
+      const url = new URL(request.url ?? '/', 'http://localhost');
+      const path = url.pathname;
       if (path === '/api/health' && request.method === 'GET') return send(response, 200, { ok: true });
       const match = /^\/api\/rooms(?:\/(\d{6})(?:\/(join|action))?)?$/.exec(path);
       if (!match) throw new RoomError('接口不存在。', 404);
@@ -66,7 +67,11 @@ export function createApiHandler(rooms = new Rooms(), options: { trustedProxies?
       }
       if (!code) throw new RoomError('接口不存在。', 404);
       const token = request.headers.authorization?.replace(/^Bearer /, '') ?? '';
-      if (request.method === 'GET' && !operation) return send(response, 200, rooms.read(code, token));
+      if (request.method === 'GET' && !operation) {
+        const since = url.searchParams.has('since') ? z.coerce.number().int().nonnegative().parse(url.searchParams.get('since')) : undefined;
+        const view = rooms.poll(code, token, since);
+        return send(response, view === null ? 204 : 200, view);
+      }
       if (request.method === 'DELETE' && !operation) {
         rooms.leave(code, token);
         return send(response, 200, { ok: true });
