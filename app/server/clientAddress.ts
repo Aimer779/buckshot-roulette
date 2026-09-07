@@ -1,7 +1,10 @@
 import { BlockList, isIP } from 'node:net';
 import type { IncomingMessage } from 'node:http';
 
-const normalize = (address: string) => address.startsWith('::ffff:') ? address.slice(7) : address;
+const normalize = (address: string) => {
+  const lower = address.toLowerCase();
+  return lower.startsWith('::ffff:') && isIP(lower.slice(7)) === 4 ? lower.slice(7) : lower;
+};
 
 /** Only proxies explicitly configured by the operator may supply client addresses. */
 export function clientAddressResolver(trustedProxies = '') {

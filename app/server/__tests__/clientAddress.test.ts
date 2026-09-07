@@ -14,6 +14,7 @@ describe('trusted proxy address resolution', () => {
     const resolve = clientAddressResolver('127.0.0.1,::1');
     expect(resolve(request('::ffff:127.0.0.1', '198.51.100.1'))).toBe('198.51.100.1');
     expect(resolve(request('::1', '198.51.100.2'))).toBe('198.51.100.2');
+    expect(resolve(request('::ffff:7f00:1', '2001:DB8::1'))).toBe('2001:db8::1');
   });
   it('stops at the first untrusted hop instead of trusting the leftmost value', () => {
     const resolve = clientAddressResolver('127.0.0.1,10.0.0.0/8');
