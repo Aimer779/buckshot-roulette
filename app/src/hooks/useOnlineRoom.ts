@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { OnlineError, readSession, requestOnline, saveSession } from '@/lib/online/client';
+import { clearEntryRequest, entryRequestId, OnlineError, readSession, requestOnline, saveSession } from '@/lib/online/client';
 import type { JoinResult, RoomAction, RoomSession, RoomView } from '@/lib/online/protocol';
 
 export function useOnlineRoom() {
@@ -46,8 +46,10 @@ export function useOnlineRoom() {
     setBusy(true);
     setError('');
     try {
-      const result = await requestOnline<JoinResult>(code ? `/${code}/join` : '', 'POST', { name, password });
+      const requestId = entryRequestId(name, code);
+      const result = await requestOnline<JoinResult>(code ? `/${code}/join` : '', 'POST', { name, password, requestId });
       saveSession(result.session);
+      clearEntryRequest();
       setSession(result.session);
       accept(result.room);
     } catch (err) { setError(err instanceof Error ? err.message : '无法连接联机服务。'); }

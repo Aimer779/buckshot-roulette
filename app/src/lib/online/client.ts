@@ -26,6 +26,24 @@ export async function requestOnline<T>(path: string, method = 'GET', body?: unkn
 }
 
 const KEY = 'buckshot-online-session';
+const ENTRY_KEY = 'buckshot-online-entry';
+let pendingEntry: { name: string; code?: string; requestId: string } | null = null;
+
+export function entryRequestId(name: string, code?: string): string {
+  try { pendingEntry ??= JSON.parse(sessionStorage.getItem(ENTRY_KEY) ?? 'null'); } catch { /* Storage is optional. */ }
+  if (pendingEntry?.name !== name || pendingEntry?.code !== code || !/^[a-f0-9]{64}$/.test(pendingEntry?.requestId ?? '')) {
+    const requestId = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
+    pendingEntry = { name, code, requestId };
+    try { sessionStorage.setItem(ENTRY_KEY, JSON.stringify(pendingEntry)); } catch { /* Keep the in-memory receipt. */ }
+  }
+  return pendingEntry!.requestId;
+}
+
+export function clearEntryRequest() {
+  pendingEntry = null;
+  try { sessionStorage.removeItem(ENTRY_KEY); } catch { /* Storage is optional. */ }
+}
+
 export function readSession(): RoomSession | null {
   try {
     const value = JSON.parse(sessionStorage.getItem(KEY) ?? 'null');

@@ -5,6 +5,7 @@ import { RoomError, Rooms } from './rooms';
 const credentials = z.object({
   name: z.string().trim().min(1).max(20),
   password: z.string().min(4).max(64),
+  requestId: z.string().regex(/^[a-f0-9]{64}$/),
 });
 const action = z.discriminatedUnion('type', [
   z.object({ type: z.literal('ready'), ready: z.boolean() }),
@@ -57,8 +58,7 @@ export function createApiHandler(rooms = new Rooms()) {
         attempts.set(ip, limit);
         if (++limit.count > 20) throw new RoomError('尝试过于频繁，请一分钟后再试。', 429);
         const input = credentials.parse(await readBody(request));
-        const result = code ? await rooms.join(code, input.name, input.password)
-          : await rooms.create(input.name, input.password);
+        const result = await rooms.enter({ ...input, code });
         return send(response, 200, result);
       }
       if (!code) throw new RoomError('接口不存在。', 404);

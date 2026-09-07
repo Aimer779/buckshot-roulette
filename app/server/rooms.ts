@@ -3,6 +3,7 @@ import { promisify } from 'node:util';
 import { act, newMatch, player, type Match } from './match';
 import { countShells } from '../src/lib/shellFlow';
 import type { JoinResult, RoomAction, RoomView, Seat } from '../src/lib/online/protocol';
+import { EntryRequests } from './entryRequests';
 
 const deriveKey = promisify(scrypt);
 const IDLE_TTL = 30 * 60_000;
@@ -29,8 +30,20 @@ export class RoomError extends Error {
 
 export class Rooms {
   private rooms = new Map<string, Room>();
+  private entries = new EntryRequests();
   private now: () => number;
   constructor(now = Date.now) { this.now = now; }
+
+  async enter(input: { name: string; password: string; code?: string; requestId: string }): Promise<JoinResult> {
+    const { requestId, ...credentials } = input;
+    const session = await this.entries.run(requestId, credentials, this.now(), async () => {
+      const result = input.code ? await this.join(input.code, input.name, input.password)
+        : await this.create(input.name, input.password);
+      return result.session;
+    });
+    // An old entry receipt cannot reclaim a revoked or expired seat.
+    return { session, room: this.read(session.code, session.token) };
+  }
 
   prune() {
     for (const [code, room] of this.rooms) {

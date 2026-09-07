@@ -1,4 +1,5 @@
 import { createServer, type Server } from 'node:http';
+import { randomBytes } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createApiHandler } from '../http';
@@ -18,6 +19,9 @@ async function setup() {
   await new Promise<void>(resolve => server!.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/rooms`;
   return async (path = '', method = 'GET', body?: unknown, token?: string) => {
+    if (method === 'POST' && (path === '' || path.endsWith('/join')) && typeof body === 'object') {
+      body = { requestId: randomBytes(32).toString('hex'), ...body };
+    }
     const response = await fetch(base + path, { method,
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: body ? JSON.stringify(body) : undefined });
