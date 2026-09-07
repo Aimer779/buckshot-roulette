@@ -15,6 +15,7 @@ const action = z.discriminatedUnion('type', [
   z.object({ type: z.literal('item'), itemId: z.string().min(1).max(100) }),
   z.object({ type: z.literal('next') }),
   z.object({ type: z.literal('rematch') }),
+  z.object({ type: z.literal('resign') }),
 ]);
 const command = z.object({ revision: z.number().int().nonnegative(), action });
 

@@ -75,7 +75,7 @@ function finishAction(match: Match) {
   }
 }
 
-export function act(match: Match, seat: Seat, action: RoomAction) {
+export function act(match: Match, seat: Seat, action: Exclude<RoomAction, { type: 'resign' }>) {
   const me = match.players[seat]!;
   const otherSeat = (1 - seat) as Seat;
   const opponent = match.players[otherSeat];

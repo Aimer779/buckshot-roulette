@@ -8,6 +8,7 @@ export type RoomAction =
   | { type: 'shoot'; target: 'self' | 'opponent' }
   | { type: 'item'; itemId: string }
   | { type: 'next' }
+  | { type: 'resign' }
   | { type: 'rematch' };
 
 export interface OnlinePlayer {

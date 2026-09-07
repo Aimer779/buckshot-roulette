@@ -116,10 +116,17 @@ export class Rooms {
     if (room.closure) throw new RoomError('房间已经结束。', 409);
     // Both seats may confirm readiness from the same snapshot. A confirmation
     // cannot cross a phase boundary or overwrite a newer action by its own seat.
-    const independentConfirmation = ['ready', 'next', 'rematch'].includes(action.type)
+    const independentConfirmation = ['ready', 'next', 'rematch', 'resign'].includes(action.type)
       && revision >= Math.max(room.phaseRevision, room.acted[seat]) && revision <= room.revision;
     if (room.revision !== revision && !independentConfirmation) {
       throw new RoomError('对局已更新，请查看最新状态后操作。', 409);
+    }
+    if (action.type === 'resign') {
+      if (!room.match.players[1] || !['playing', 'round-end'].includes(room.match.phase)) {
+        throw new RoomError('只有正在进行的比赛可以认输。', 409);
+      }
+      closeRoom(room, 'resigned', seat, `${room.match.players[seat]!.name} 已认输，本场比赛结束。`, this.now());
+      return this.view(room, seat);
     }
     const phase = room.match.phase;
     act(room.match, seat, action);

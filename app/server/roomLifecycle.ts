@@ -15,7 +15,6 @@ export function expireConnections(room: Room, now: number) {
   const actor = expired.length === 2 ? null : expired[0];
   const message = actor === null ? '双方均未在重连期限内返回，房间已结束。'
     : `${room.match.players[actor]!.name} 重连超时，已退出房间。`;
-  recordEvent(room, 'timed-out', actor, message, now);
   closeRoom(room, 'connection-timeout', actor, message, now);
 }
 
@@ -31,7 +30,7 @@ export function closeRoom(room: Room, reason: RoomClosure['reason'], actor: Seat
   }
   room.closure = { reason, actor, message, at: now };
   room.match.phase = 'closed';
-  recordEvent(room, 'closed', actor, message, now);
+  recordEvent(room, reason === 'resigned' ? 'resigned' : reason === 'connection-timeout' ? 'timed-out' : 'closed', actor, message, now);
   room.phaseRevision = room.revision;
 }
 

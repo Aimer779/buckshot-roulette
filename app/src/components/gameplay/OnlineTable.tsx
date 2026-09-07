@@ -1,4 +1,5 @@
 import HealthBar from '@/components/HealthBar';
+import ResignButton from '@/components/gameplay/ResignButton';
 import { ITEM_INFO } from '@/store/gameStore';
 import type { RoomAction, RoomView } from '@/lib/online/protocol';
 
@@ -62,6 +63,9 @@ export default function OnlineTable({ room, disabled, act }: Props) {
       <section aria-label="对局记录" className="max-h-44 overflow-y-auto rounded border border-white/10 bg-black/50 p-3 text-sm text-stone-400">
         {[...room.logs].reverse().map((message, i) => <p key={`${room.logs.length - i}-${message}`}>{message}</p>)}
       </section>
+      {(room.phase === 'playing' || room.phase === 'round-end') && <div className="flex justify-end">
+        <ResignButton disabled={disabled} resign={() => void act({ type: 'resign' })} />
+      </div>}
     </div>
   );
 }
