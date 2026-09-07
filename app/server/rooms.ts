@@ -5,7 +5,7 @@ import { countShells } from '../src/lib/shellFlow';
 import type { JoinResult, RoomAction, RoomView, Seat } from '../src/lib/online/protocol';
 import { EntryRequests } from './entryRequests';
 import type { Room } from './roomState';
-import { closeRoom, CLOSED_RETENTION_MS, recordEvent, refreshPresence, ROOM_IDLE_MS } from './roomLifecycle';
+import { closeRoom, CLOSED_RETENTION_MS, expireConnections, reconnectDeadline, recordEvent, refreshPresence, ROOM_IDLE_MS } from './roomLifecycle';
 
 const deriveKey = promisify(scrypt);
 
@@ -46,6 +46,7 @@ export class Rooms {
 
   prune() {
     for (const [code, room] of this.rooms) {
+      expireConnections(room, this.now());
       if (room.closure) {
         if (this.now() - room.closure.at >= CLOSED_RETENTION_MS) this.rooms.delete(code);
       } else if (this.now() - Math.max(...room.seen) > ROOM_IDLE_MS) {
@@ -140,6 +141,8 @@ export class Rooms {
       winner: match.winner, counts: countShells(match.shells.slice(match.index)),
       knownShells: [...match.known[seat]].filter(i => i >= match.index).sort((a, b) => a - b)
         .map(i => ({ position: i - match.index + 1, type: match.shells[i].type })),
-      logs: match.logs, events: room.events, closure: room.closure });
+      logs: match.logs, events: room.events, closure: room.closure, serverTime: this.now(),
+      reconnectUntil: ([0, 1] as const).map(id => !room.closure && match.players[id] && !match.players[id]!.connected
+        ? reconnectDeadline(room, id) : null) as [number | null, number | null] });
   }
 }

@@ -51,6 +51,8 @@ export interface RoomView {
   logs: string[];
   events: RoomEvent[];
   closure: RoomClosure | null;
+  serverTime: number;
+  reconnectUntil: [number | null, number | null];
 }
 
 export interface RoomSession {

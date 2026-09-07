@@ -6,6 +6,7 @@ import OnlineTable from '@/components/gameplay/OnlineTable';
 import OnlineLobby from '@/components/gameplay/OnlineLobby';
 import RoomActivity from '@/components/gameplay/RoomActivity';
 import RoomEnded from '@/components/gameplay/RoomEnded';
+import RoomConnection from '@/components/gameplay/RoomConnection';
 
 export default function OnlineScreen() {
   const { room, session, connected, busy, error, enter, act, leave, dismiss } = useOnlineRoom();
@@ -55,6 +56,7 @@ export default function OnlineScreen() {
           </div>
           {!connected && <p role="status" className="mb-4 rounded bg-amber-950/60 p-3 text-amber-200">正在连接房间… 连接恢复后自动同步，暂时无法操作。</p>}
           {room && <RoomActivity events={room.events} />}
+          {room && <RoomConnection room={room} />}
           {room?.phase === 'closed' && <RoomEnded room={room} dismiss={dismiss} />}
           {room?.phase === 'waiting' && <OnlineLobby room={room} connected={connected} busy={busy} act={act} />}
           {room && room.phase !== 'waiting' && room.phase !== 'closed' && <OnlineTable room={room} disabled={busy || !connected} act={act} />}

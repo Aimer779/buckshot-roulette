@@ -4,6 +4,20 @@ import type { RoomClosure, RoomEvent, Seat } from '../src/lib/online/protocol';
 export const ROOM_IDLE_MS = 30 * 60_000;
 export const CLOSED_RETENTION_MS = 5 * 60_000;
 export const HEARTBEAT_MS = 15_000;
+export const RECONNECT_MS = 90_000;
+
+export const reconnectDeadline = (room: Room, seat: Seat) => room.seen[seat] + HEARTBEAT_MS + RECONNECT_MS;
+
+export function expireConnections(room: Room, now: number) {
+  if (room.closure || !room.match.players[1]) return;
+  const expired = ([0, 1] as const).filter(seat => now >= reconnectDeadline(room, seat));
+  if (!expired.length) return;
+  const actor = expired.length === 2 ? null : expired[0];
+  const message = actor === null ? '双方均未在重连期限内返回，房间已结束。'
+    : `${room.match.players[actor]!.name} 重连超时，已退出房间。`;
+  recordEvent(room, 'timed-out', actor, message, now);
+  closeRoom(room, 'connection-timeout', actor, message, now);
+}
 
 export function recordEvent(room: Room, type: RoomEvent['type'], actor: Seat | null, message: string, now: number) {
   room.events = [...room.events, { id: ++room.eventId, type, actor, message, at: now }].slice(-20);
