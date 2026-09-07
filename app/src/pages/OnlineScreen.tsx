@@ -19,7 +19,10 @@ export default function OnlineScreen() {
         <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div><p className="mb-2 font-pixel text-xs tracking-[.3em] text-red-400">BUCKSHOT ROULETTE / ONLINE</p>
             <h1 className="flex items-center gap-3 text-3xl font-bold"><Users aria-hidden="true" />双人联机</h1></div>
-          {!session && <Link className="text-sm text-stone-400 hover:text-white" to="/">返回主菜单</Link>}
+          <Link className="rounded px-2 py-2 text-sm text-stone-400 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" to="/"
+            title={session ? '保留当前标签页的重连凭证；回到联机页面可重新连接。' : undefined}>
+            {session ? '暂时返回主菜单' : '返回主菜单'}
+          </Link>
         </header>
         {error && <p role="alert" className="mb-4 rounded border border-red-500/50 bg-red-950/50 p-3 text-red-200">{error}</p>}
         {!session ? <section className="mx-auto max-w-lg rounded-xl border border-white/15 bg-black/50 p-6 shadow-2xl">
