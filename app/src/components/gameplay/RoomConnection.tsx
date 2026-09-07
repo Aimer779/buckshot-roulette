@@ -22,7 +22,7 @@ export default function RoomConnection({ room }: { room: RoomView }) {
   return <aside className="mb-4 rounded-lg border border-[var(--accent-gold)] bg-[var(--bg-dark)] p-4 text-sm">
     <p role="status" className="mb-2 flex items-center gap-2 text-[var(--accent-gold)]"><WifiOff className="h-4 w-4 shrink-0" aria-hidden="true" />{room.players[opponent]!.name} 暂时离线，等待重连</p>
     <div className="flex flex-wrap items-center justify-between gap-2 text-[var(--text-secondary)]">
-      <span>{room.phase === 'waiting' ? '重连超时后按退出房间处理。' : '对局已暂停；重连超时按离开处理并结算。'}</span>
+      <span>{room.phase === 'waiting' ? room.seat === 0 ? '超时后释放对方座位，你可以继续邀请。' : '房主重连超时后将关闭房间。' : '对局已暂停；重连超时按离开处理并结算。'}</span>
       <Countdown key={`${deadline}:${room.serverTime}`} deadline={deadline} serverTime={room.serverTime} />
     </div>
   </aside>;

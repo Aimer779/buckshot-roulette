@@ -13,9 +13,30 @@ export function expireConnections(room: Room, now: number) {
   const expired = ([0, 1] as const).filter(seat => now >= reconnectDeadline(room, seat));
   if (!expired.length) return;
   const actor = expired.length === 2 ? null : expired[0];
+  if (room.match.phase === 'waiting' && actor === 1) {
+    releaseGuest(room, 'timed-out', `${room.match.players[1]!.name} 重连超时，座位已释放。`, now);
+    return;
+  }
   const message = actor === null ? '双方均未在重连期限内返回，房间已结束。'
     : `${room.match.players[actor]!.name} 重连超时，已退出房间。`;
   closeRoom(room, 'connection-timeout', actor, message, now);
+}
+
+export function releaseGuest(room: Room, type: 'left' | 'timed-out', message: string, now: number) {
+  const token = room.tokens[1];
+  if (room.match.phase !== 'waiting' || !token) return;
+  room.removedSeats = [...room.removedSeats.filter(seat => now - seat.at < CLOSED_RETENTION_MS), {
+    token, message: type === 'timed-out' ? '你的重连期限已过，座位已释放，请重新加入。' : '你已退出该房间，原座位凭证已失效。', at: now,
+  }].slice(-20);
+  room.tokens[1] = null;
+  room.seen[1] = 0;
+  room.match.players[1] = null;
+  room.match.players[0].ready = false;
+  room.match.known[1].clear();
+  room.acted[1] = -1;
+  recordEvent(room, type, 1, message, now);
+  // A new opponent requires a fresh ready decision, including pending host requests.
+  room.phaseRevision = room.revision;
 }
 
 export function recordEvent(room: Room, type: RoomEvent['type'], actor: Seat | null, message: string, now: number) {

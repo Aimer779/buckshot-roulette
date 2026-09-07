@@ -92,13 +92,13 @@ describe('password-protected two-seat rooms', () => {
     expect(action(rooms, host, { type: 'shoot', target: 'self' }).revision).toBeGreaterThan(reconnected.revision);
   });
 
-  it('closes both seats on leave and expires rooms after inactivity', async () => {
+  it('releases a departing lobby guest and expires an unattended single-player room', async () => {
     let now = 1_000_000;
     const rooms = new Rooms(() => now);
     const host = await rooms.create('甲', 'secret');
     const guest = await rooms.join(host.session.code, '乙', 'secret');
     rooms.leave(guest.session.code, guest.session.token);
-    expect(rooms.read(host.session.code, host.session.token).closure?.message).toContain('乙');
+    expect(rooms.read(host.session.code, host.session.token).players[1]).toBeNull();
     const idle = await rooms.create('甲', 'secret');
     now += 31 * 60_000;
     expect(rooms.read(idle.session.code, idle.session.token).closure?.reason).toBe('expired');

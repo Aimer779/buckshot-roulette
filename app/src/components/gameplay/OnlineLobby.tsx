@@ -113,7 +113,7 @@ export default function OnlineLobby({ room, connected, busy, act }: Props) {
           ['对局规则', '三局两胜，每局轮换先手。双方准备后由房主开始。'],
           ['回合与情报', '向自己打出空包弹可继续行动；道具揭示的情报仅自己可见。'],
           ['断线重连', '刷新当前页面可恢复座位；对方离线时暂停，重连后继续。'],
-          ['退出房间', '任意一方退出都会关闭整个房间，双方需要重新入座。'],
+          ['退出房间', '大厅中客人退出会释放座位，房主可继续邀请；房主退出会关闭房间。'],
         ].map(([title, description]) => <div key={title} className="border-l-2 border-[color-mix(in_srgb,var(--accent-gold)_20%,transparent)] pl-3">
           <dt className="mb-1 text-xs font-medium text-[var(--accent-gold)]">{title}</dt>
           <dd className="text-sm leading-6 text-[var(--text-secondary)]">{description}</dd>

@@ -5,7 +5,7 @@ import { countShells } from '../src/lib/shellFlow';
 import type { JoinResult, RoomAction, RoomView, Seat } from '../src/lib/online/protocol';
 import { EntryRequests } from './entryRequests';
 import type { Room } from './roomState';
-import { closeRoom, CLOSED_RETENTION_MS, expireConnections, reconnectDeadline, recordEvent, refreshPresence, ROOM_IDLE_MS } from './roomLifecycle';
+import { closeRoom, CLOSED_RETENTION_MS, expireConnections, reconnectDeadline, recordEvent, refreshPresence, releaseGuest, ROOM_IDLE_MS } from './roomLifecycle';
 
 const deriveKey = promisify(scrypt);
 
@@ -66,7 +66,7 @@ export class Rooms {
     const token = randomBytes(32).toString('hex');
     const room: Room = { code, salt, password: key, tokens: [token, null],
       seen: [this.now(), 0], revision: 0, phaseRevision: 0, acted: [-1, -1], match: newMatch(name),
-      events: [], eventId: 0, closure: null };
+      events: [], eventId: 0, closure: null, removedSeats: [] };
     recordEvent(room, 'joined', 0, `${name} 创建了房间。`, this.now());
     this.rooms.set(code, room);
     return { session: { code, token }, room: this.view(room, 0) };
@@ -98,7 +98,10 @@ export class Rooms {
   private authenticate(code: string, token: string) {
     const room = this.get(code);
     const index = room.tokens.findIndex(candidate => candidate !== null && candidate === token);
-    if (index < 0) throw new RoomError('房间凭证失效，请重新加入。', 401);
+    if (index < 0) {
+      const removed = room.removedSeats.find(seat => seat.token === token && this.now() - seat.at < CLOSED_RETENTION_MS);
+      throw new RoomError(removed?.message ?? '房间凭证失效，请重新加入。', 401);
+    }
     const seat = index as Seat;
     if (room.closure) return { room, seat };
     room.seen[seat] = this.now();
@@ -138,6 +141,10 @@ export class Rooms {
 
   leave(code: string, token: string) {
     const { room, seat } = this.authenticate(code, token);
+    if (room.match.phase === 'waiting' && seat === 1) {
+      releaseGuest(room, 'left', `${room.match.players[1]!.name} 退出了房间，空位可重新邀请。`, this.now());
+      return;
+    }
     closeRoom(room, 'left', seat, `${room.match.players[seat]!.name} 主动退出了房间。`, this.now());
   }
 

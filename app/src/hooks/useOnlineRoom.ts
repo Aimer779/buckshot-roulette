@@ -53,7 +53,10 @@ export function useOnlineRoom() {
       clearEntryRequest();
       setSession(result.session);
       accept(result.room);
-    } catch (err) { setError(err instanceof Error ? err.message : '无法连接联机服务。'); }
+    } catch (err) {
+      if (err instanceof OnlineError && [401, 404, 410].includes(err.status)) clearEntryRequest();
+      setError(err instanceof Error ? err.message : '无法连接联机服务。');
+    }
     finally { lock.current = false; setBusy(false); }
   };
 

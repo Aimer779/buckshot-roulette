@@ -14,4 +14,5 @@ export interface Room {
   events: RoomEvent[];
   eventId: number;
   closure: RoomClosure | null;
+  removedSeats: Array<{ token: string; message: string; at: number }>;
 }

@@ -15,6 +15,9 @@ export default function OnlineScreen() {
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const inputClass = 'w-full rounded border border-stone-600 bg-black/60 px-4 py-3 text-stone-100 outline-none focus:border-amber-400';
+  const exitLabel = room?.phase === 'closed' ? '返回联机大厅'
+    : room?.phase === 'waiting' ? room.seat === 0 ? '退出并关闭房间' : '退出房间'
+      : room?.phase === 'playing' || room?.phase === 'round-end' ? '退出并认负' : '退出房间';
   return (
     <main className="h-[100dvh] overflow-y-auto bg-cover bg-center px-4 py-8 font-chinese text-stone-100"
       style={{ backgroundImage: 'linear-gradient(rgba(8,8,12,.9),rgba(8,8,12,.95)),url(/bg-title.jpg)' }}>
@@ -49,9 +52,9 @@ export default function OnlineScreen() {
         </section> : <>
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded border border-white/15 bg-black/60 p-4">
             <div><p className="text-xs text-stone-400">房间号码 · 请将房号和密码发给朋友</p><p className="font-pixel text-3xl tracking-widest text-amber-400">{session.code}</p></div>
-            <button type="button" disabled={busy} onClick={() => void leave()}
+            <button type="button" disabled={busy} onClick={() => room?.phase === 'closed' ? dismiss() : void leave()}
               className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-[color-mix(in_srgb,var(--accent-red)_40%,transparent)] bg-[color-mix(in_srgb,var(--accent-crimson)_10%,transparent)] px-4 py-2.5 text-sm font-medium text-[var(--text-primary)] transition-colors enabled:hover:border-[var(--accent-red-glow)] enabled:hover:bg-[color-mix(in_srgb,var(--accent-crimson)_30%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-red-glow)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-dark)] motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-40">
-              <LogOut className="h-4 w-4" aria-hidden="true" />退出并关闭房间
+              <LogOut className="h-4 w-4" aria-hidden="true" />{exitLabel}
             </button>
           </div>
           {!connected && <p role="status" className="mb-4 rounded bg-amber-950/60 p-3 text-amber-200">正在连接房间… 连接恢复后自动同步，暂时无法操作。</p>}
