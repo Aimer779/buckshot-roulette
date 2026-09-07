@@ -7,13 +7,16 @@ import OnlineLobby from '@/components/gameplay/OnlineLobby';
 import RoomActivity from '@/components/gameplay/RoomActivity';
 import RoomEnded from '@/components/gameplay/RoomEnded';
 import RoomConnection from '@/components/gameplay/RoomConnection';
+import RoomInvite from '@/components/gameplay/RoomInvite';
 
 export default function OnlineScreen() {
+  const requestedRoom = new URLSearchParams(window.location.search).get('room') ?? '';
+  const inviteCode = /^\d{6}$/.test(requestedRoom) ? requestedRoom : '';
   const { room, session, connected, busy, error, enter, act, leave, dismiss } = useOnlineRoom();
-  const [mode, setMode] = useState<'create' | 'join'>('create');
+  const [mode, setMode] = useState<'create' | 'join'>(() => inviteCode ? 'join' : 'create');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState(inviteCode);
   const inputClass = 'w-full rounded border border-stone-600 bg-black/60 px-4 py-3 text-stone-100 outline-none focus:border-amber-400';
   const exitLabel = room?.phase === 'closed' ? '返回联机大厅'
     : room?.phase === 'waiting' ? room.seat === 0 ? '退出并关闭房间' : '退出房间'
@@ -31,6 +34,9 @@ export default function OnlineScreen() {
           </Link>
         </header>
         {error && <p role="alert" className="mb-4 rounded border border-red-500/50 bg-red-950/50 p-3 text-red-200">{error}</p>}
+        {session && inviteCode && inviteCode !== session.code && <p className="mb-4 rounded border border-[var(--accent-gold)] bg-[var(--bg-dark)] p-3 text-sm text-[var(--text-secondary)]">
+          邀请来自房间 {inviteCode}。你仍在房间 {session.code}，请先退出当前房间再加入邀请。
+        </p>}
         {!session ? <section className="mx-auto max-w-lg rounded-xl border border-white/15 bg-black/50 p-6 shadow-2xl">
           <div className="mb-6 grid grid-cols-2 gap-2">
             <button className={`rounded p-3 ${mode === 'create' ? 'bg-red-900 text-white' : 'bg-stone-900 text-stone-400'}`} onClick={() => setMode('create')}>创建房间</button>
@@ -50,8 +56,8 @@ export default function OnlineScreen() {
             <button className="btn-primary mt-2 w-full disabled:opacity-40" disabled={busy || !name.trim()}>{busy ? '正在连接…' : mode === 'create' ? '创建双人房间' : '加入房间'}</button>
           </form>
         </section> : <>
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded border border-white/15 bg-black/60 p-4">
-            <div><p className="text-xs text-stone-400">房间号码 · 请将房号和密码发给朋友</p><p className="font-pixel text-3xl tracking-widest text-amber-400">{session.code}</p></div>
+          <div className="mb-5 flex flex-wrap items-start justify-between gap-4 rounded border border-white/15 bg-black/60 p-4">
+            <RoomInvite code={session.code} />
             <button type="button" disabled={busy} onClick={() => room?.phase === 'closed' ? dismiss() : void leave()}
               className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-[color-mix(in_srgb,var(--accent-red)_40%,transparent)] bg-[color-mix(in_srgb,var(--accent-crimson)_10%,transparent)] px-4 py-2.5 text-sm font-medium text-[var(--text-primary)] transition-colors enabled:hover:border-[var(--accent-red-glow)] enabled:hover:bg-[color-mix(in_srgb,var(--accent-crimson)_30%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-red-glow)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-dark)] motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-40">
               <LogOut className="h-4 w-4" aria-hidden="true" />{exitLabel}
