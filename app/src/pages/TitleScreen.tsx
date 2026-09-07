@@ -368,6 +368,8 @@ export default function TitleScreen() {
         return;
       }
 
+      if (e.target instanceof HTMLElement && e.target.closest('button, a, input, select, textarea')) return;
+
       if (e.key === 'Enter' || e.key === ' ') {
         playSFX('shotgun-pump');
         resetGame();
@@ -553,6 +555,17 @@ export default function TitleScreen() {
           >
             <Play className="w-5 h-5" />
             开始游戏
+          </motion.button>
+
+          <motion.button
+            custom={1}
+            variants={buttonVariants}
+            initial="hidden"
+            animate={entered ? 'visible' : 'hidden'}
+            onClick={() => navigate('/online')}
+            className="btn-secondary gap-2"
+          >
+            双人联机
           </motion.button>
 
           {/* Tutorial */}

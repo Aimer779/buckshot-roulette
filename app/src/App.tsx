@@ -4,6 +4,7 @@ import TitleScreen from '@/pages/TitleScreen';
 import TutorialScreen from '@/pages/TutorialScreen';
 import GameplayScreen from '@/pages/GameplayScreen';
 import GameOverScreen from '@/pages/GameOverScreen';
+import OnlineScreen from '@/pages/OnlineScreen';
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
         <Route path="/" element={<TitleScreen />} />
         <Route path="/tutorial" element={<TutorialScreen />} />
         <Route path="/play" element={<GameplayScreen />} />
+        <Route path="/online" element={<OnlineScreen />} />
         <Route path="/gameover" element={<GameOverScreen />} />
       </Routes>
     </Layout>

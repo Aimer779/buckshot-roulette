@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && tsc -p tsconfig.server.json && vite build && vite build --ssr server/index.ts --outDir server-dist",
+    "start": "node server-dist/index.js",
     "lint": "eslint .",
-    "preview": "vite preview",
+    "preview": "node server-dist/index.js",
     "test": "vitest run"
   },
   "dependencies": {

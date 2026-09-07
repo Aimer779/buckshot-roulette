@@ -4,9 +4,19 @@ import { defineConfig } from "vite"
 import { inspectAttr } from 'plugin-inspect-react-code'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ isSsrBuild }) => ({
   base: './',
-  plugins: [inspectAttr(), react()],
+  plugins: isSsrBuild ? [] : [inspectAttr(), react(), {
+    name: 'online-rooms',
+    async configureServer(server) {
+      const { createApiHandler } = await server.ssrLoadModule('/server/http.ts');
+      const api = createApiHandler();
+      server.middlewares.use((req, res, next) => {
+        if (req.url?.startsWith('/api/')) void api(req, res);
+        else next();
+      });
+    },
+  }],
   server: {
     port: 3000,
   },
@@ -15,4 +25,4 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-});
+}));
