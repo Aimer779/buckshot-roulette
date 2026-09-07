@@ -5,6 +5,7 @@ import { Howl } from 'howler';
 const soundCache: Map<string, Howl> = new Map();
 
 const SOUND_URLS: Record<string, string> = {
+  'turn-ready': '/sfx-turn-ready.wav',
   'shotgun-pump': '/sfx-shotgun-pump.mp3',
   'shotgun-fire': '/sfx-shotgun-fire.mp3',
   'shotgun-click': '/sfx-shotgun-click.mp3',

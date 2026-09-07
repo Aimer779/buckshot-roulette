@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { LockKeyhole, LogOut, Users } from 'lucide-react';
+import { Bell, BellOff, LockKeyhole, LogOut, Users } from 'lucide-react';
 import { useOnlineRoom } from '@/hooks/useOnlineRoom';
 import OnlineTable from '@/components/gameplay/OnlineTable';
 import OnlineLobby from '@/components/gameplay/OnlineLobby';
@@ -8,11 +8,13 @@ import RoomActivity from '@/components/gameplay/RoomActivity';
 import RoomEnded from '@/components/gameplay/RoomEnded';
 import RoomConnection from '@/components/gameplay/RoomConnection';
 import RoomInvite from '@/components/gameplay/RoomInvite';
+import { useOnlineTurnAlert } from '@/hooks/useOnlineTurnAlert';
 
 export default function OnlineScreen() {
   const requestedRoom = new URLSearchParams(window.location.search).get('room') ?? '';
   const inviteCode = /^\d{6}$/.test(requestedRoom) ? requestedRoom : '';
   const { room, session, connected, busy, error, enter, act, leave, dismiss } = useOnlineRoom();
+  const turnAlert = useOnlineTurnAlert(room, connected);
   const [mode, setMode] = useState<'create' | 'join'>(() => inviteCode ? 'join' : 'create');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
@@ -66,6 +68,12 @@ export default function OnlineScreen() {
           {!connected && <p role="status" className="mb-4 rounded bg-amber-950/60 p-3 text-amber-200">正在连接房间… 连接恢复后自动同步，暂时无法操作。</p>}
           {room && <RoomActivity events={room.events} />}
           {room && <RoomConnection room={room} />}
+          <div className="mb-4 flex justify-end">
+            <button onClick={turnAlert.toggle} aria-pressed={turnAlert.enabled} title={turnAlert.soundEnabled ? '轮到你行动时播放一次提示音' : '主菜单的音效总开关已关闭'}
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--bg-elevated)] bg-[var(--bg-dark)] px-3 text-xs text-[var(--text-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]">
+              {turnAlert.enabled ? <Bell className="h-4 w-4" aria-hidden="true" /> : <BellOff className="h-4 w-4" aria-hidden="true" />}回合提示音：{turnAlert.enabled ? '开启' : '关闭'}
+            </button>
+          </div>
           {room?.phase === 'closed' && <RoomEnded room={room} dismiss={dismiss} />}
           {room?.phase === 'waiting' && <OnlineLobby room={room} connected={connected} busy={busy} act={act} />}
           {room && room.phase !== 'waiting' && room.phase !== 'closed' && <OnlineTable room={room} disabled={busy || !connected} act={act} />}
