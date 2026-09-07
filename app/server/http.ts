@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { z } from 'zod';
 import { RoomError, Rooms } from './rooms';
+import { clientAddressResolver } from './clientAddress';
 
 const credentials = z.object({
   name: z.string().trim().min(1).max(20),
@@ -38,8 +39,9 @@ function send(response: ServerResponse, status: number, body: unknown) {
   response.end(JSON.stringify(body));
 }
 
-export function createApiHandler(rooms = new Rooms()) {
+export function createApiHandler(rooms = new Rooms(), options: { trustedProxies?: string } = {}) {
   const attempts = new Map<string, { count: number; until: number }>();
+  const clientAddress = clientAddressResolver(options.trustedProxies ?? process.env.TRUSTED_PROXIES ?? '');
   return async (request: IncomingMessage, response: ServerResponse) => {
     try {
       // No CORS: the browser accesses the API through the same origin as the game.
@@ -53,7 +55,7 @@ export function createApiHandler(rooms = new Rooms()) {
       if (request.method === 'POST' && (!code || operation === 'join')) {
         const now = Date.now();
         for (const [key, value] of attempts) if (value.until <= now) attempts.delete(key);
-        const ip = request.socket.remoteAddress ?? 'unknown';
+        const ip = clientAddress(request);
         const limit = attempts.get(ip) ?? { count: 0, until: now + 60_000 };
         attempts.set(ip, limit);
         if (++limit.count > 20) throw new RoomError('尝试过于频繁，请一分钟后再试。', 429);

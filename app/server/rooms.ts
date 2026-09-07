@@ -31,8 +31,16 @@ export class RoomError extends Error {
 export class Rooms {
   private rooms = new Map<string, Room>();
   private entries = new EntryRequests();
+  private passwordJobs = 0;
   private now: () => number;
   constructor(now = Date.now) { this.now = now; }
+
+  private async hashPassword(password: string, salt: string) {
+    if (this.passwordJobs >= 8) throw new RoomError('入座服务繁忙，请稍后重试。', 503);
+    this.passwordJobs++;
+    try { return await deriveKey(password, salt, 64) as Buffer; }
+    finally { this.passwordJobs--; }
+  }
 
   async enter(input: { name: string; password: string; code?: string; requestId: string }): Promise<JoinResult> {
     const { requestId, ...credentials } = input;
@@ -55,7 +63,7 @@ export class Rooms {
     this.prune();
     if (this.rooms.size >= 500) throw new RoomError('房间已满，请稍后再试。', 503);
     const salt = randomBytes(16).toString('hex');
-    const key = await deriveKey(password, salt, 64) as Buffer;
+    const key = await this.hashPassword(password, salt);
     if (this.rooms.size >= 500) throw new RoomError('房间已满，请稍后再试。', 503);
     let code: string;
     do { code = String(randomInt(100000, 1000000)); } while (this.rooms.has(code));
@@ -68,7 +76,7 @@ export class Rooms {
 
   async join(code: string, name: string, password: string): Promise<JoinResult> {
     const room = this.get(code);
-    const key = await deriveKey(password, room.salt, 64) as Buffer;
+    const key = await this.hashPassword(password, room.salt);
     if (!timingSafeEqual(key, room.password)) throw new RoomError('房号或密码不正确。', 403);
     // Password hashing yields; recheck membership and capacity before assigning the seat.
     if (this.rooms.get(code) !== room) throw new RoomError('房间已关闭。', 404);

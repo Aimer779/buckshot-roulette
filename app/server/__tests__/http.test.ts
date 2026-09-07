@@ -14,22 +14,37 @@ afterEach(async () => {
   }
 });
 
-async function setup() {
-  server = createServer(createApiHandler());
+async function setup(trustedProxies = '') {
+  server = createServer(createApiHandler(undefined, { trustedProxies }));
   await new Promise<void>(resolve => server!.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/rooms`;
-  return async (path = '', method = 'GET', body?: unknown, token?: string) => {
+  return async (path = '', method = 'GET', body?: unknown, token?: string, headers: Record<string, string> = {}) => {
     if (method === 'POST' && (path === '' || path.endsWith('/join')) && typeof body === 'object') {
       body = { requestId: randomBytes(32).toString('hex'), ...body };
     }
     const response = await fetch(base + path, { method,
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      headers: { 'Content-Type': 'application/json', ...headers, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: body ? JSON.stringify(body) : undefined });
     return { status: response.status, body: await response.json() };
   };
 }
 
 describe('online HTTP contract', () => {
+  it('keeps separate limits behind a trusted proxy, while still limiting each client', async () => {
+    const request = await setup('127.0.0.1');
+    for (let i = 1; i <= 21; i++) {
+      expect((await request('', 'POST', {}, undefined, { 'X-Forwarded-For': `192.0.2.${i}` })).status).toBe(400);
+    }
+    for (let i = 0; i < 19; i++) await request('', 'POST', {}, undefined, { 'X-Forwarded-For': '192.0.2.1' });
+    expect((await request('', 'POST', {}, undefined, { 'X-Forwarded-For': '192.0.2.1' })).status).toBe(429);
+  });
+
+  it('cannot bypass the direct-client limit with forged forwarding headers', async () => {
+    const request = await setup();
+    for (let i = 1; i <= 20; i++) await request('', 'POST', {}, undefined, { 'X-Forwarded-For': `192.0.2.${i}` });
+    expect((await request('', 'POST', {}, undefined, { 'X-Forwarded-For': '192.0.2.21' })).status).toBe(429);
+  });
+
   it('validates credentials and actions before executing them', async () => {
     const request = await setup();
     expect((await request('', 'POST', { name: '', password: '1234' })).status).toBe(400);
