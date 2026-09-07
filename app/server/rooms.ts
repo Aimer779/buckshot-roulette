@@ -1,24 +1,13 @@
 import { randomBytes, randomInt, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
-import { act, newMatch, player, type Match } from './match';
+import { act, newMatch, player } from './match';
 import { countShells } from '../src/lib/shellFlow';
 import type { JoinResult, RoomAction, RoomView, Seat } from '../src/lib/online/protocol';
 import { EntryRequests } from './entryRequests';
+import type { Room } from './roomState';
+import { closeRoom, CLOSED_RETENTION_MS, recordEvent, refreshPresence, ROOM_IDLE_MS } from './roomLifecycle';
 
 const deriveKey = promisify(scrypt);
-const IDLE_TTL = 30 * 60_000;
-const HEARTBEAT_TTL = 15_000;
-interface Room {
-  code: string;
-  salt: string;
-  password: Buffer;
-  tokens: [string, string | null];
-  seen: [number, number];
-  revision: number;
-  phaseRevision: number;
-  acted: [number, number];
-  match: Match;
-}
 
 export class RoomError extends Error {
   status: number;
@@ -50,12 +39,18 @@ export class Rooms {
       return result.session;
     });
     // An old entry receipt cannot reclaim a revoked or expired seat.
-    return { session, room: this.read(session.code, session.token) };
+    const room = this.read(session.code, session.token);
+    if (room.closure) throw new RoomError('此前的房间已经结束，请重新创建或加入。', 410);
+    return { session, room };
   }
 
   prune() {
     for (const [code, room] of this.rooms) {
-      if (this.now() - Math.max(...room.seen) > IDLE_TTL) this.rooms.delete(code);
+      if (room.closure) {
+        if (this.now() - room.closure.at >= CLOSED_RETENTION_MS) this.rooms.delete(code);
+      } else if (this.now() - Math.max(...room.seen) > ROOM_IDLE_MS) {
+        closeRoom(room, 'expired', null, '房间因长时间无人在线而关闭。', this.now());
+      }
     }
   }
 
@@ -69,7 +64,9 @@ export class Rooms {
     do { code = String(randomInt(100000, 1000000)); } while (this.rooms.has(code));
     const token = randomBytes(32).toString('hex');
     const room: Room = { code, salt, password: key, tokens: [token, null],
-      seen: [this.now(), 0], revision: 0, phaseRevision: 0, acted: [-1, -1], match: newMatch(name) };
+      seen: [this.now(), 0], revision: 0, phaseRevision: 0, acted: [-1, -1], match: newMatch(name),
+      events: [], eventId: 0, closure: null };
+    recordEvent(room, 'joined', 0, `${name} 创建了房间。`, this.now());
     this.rooms.set(code, room);
     return { session: { code, token }, room: this.view(room, 0) };
   }
@@ -86,7 +83,7 @@ export class Rooms {
     room.tokens[1] = token;
     room.seen[1] = this.now();
     room.match.players[1] = player(name);
-    room.revision++;
+    recordEvent(room, 'joined', 1, `${name} 加入了房间。`, this.now());
     return { session: { code, token }, room: this.view(room, 1) };
   }
 
@@ -102,15 +99,9 @@ export class Rooms {
     const index = room.tokens.findIndex(candidate => candidate !== null && candidate === token);
     if (index < 0) throw new RoomError('房间凭证失效，请重新加入。', 401);
     const seat = index as Seat;
+    if (room.closure) return { room, seat };
     room.seen[seat] = this.now();
-    for (const id of [0, 1] as const) {
-      const participant = room.match.players[id];
-      const connected = this.now() - room.seen[id] <= HEARTBEAT_TTL;
-      if (participant && participant.connected !== connected) {
-        participant.connected = connected;
-        room.revision++;
-      }
-    }
+    refreshPresence(room, this.now());
     return { room, seat };
   }
 
@@ -121,6 +112,7 @@ export class Rooms {
 
   action(code: string, token: string, revision: number, action: RoomAction) {
     const { room, seat } = this.authenticate(code, token);
+    if (room.closure) throw new RoomError('房间已经结束。', 409);
     // Both seats may confirm readiness from the same snapshot. A confirmation
     // cannot cross a phase boundary or overwrite a newer action by its own seat.
     const independentConfirmation = ['ready', 'next', 'rematch'].includes(action.type)
@@ -137,8 +129,8 @@ export class Rooms {
   }
 
   leave(code: string, token: string) {
-    this.authenticate(code, token);
-    this.rooms.delete(code);
+    const { room, seat } = this.authenticate(code, token);
+    closeRoom(room, 'left', seat, `${room.match.players[seat]!.name} 主动退出了房间。`, this.now());
   }
 
   private view(room: Room, seat: Seat): RoomView {
@@ -148,6 +140,6 @@ export class Rooms {
       winner: match.winner, counts: countShells(match.shells.slice(match.index)),
       knownShells: [...match.known[seat]].filter(i => i >= match.index).sort((a, b) => a - b)
         .map(i => ({ position: i - match.index + 1, type: match.shells[i].type })),
-      logs: match.logs });
+      logs: match.logs, events: room.events, closure: room.closure });
   }
 }

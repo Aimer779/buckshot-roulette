@@ -1,7 +1,7 @@
 import type { Item, ShellType } from '@/store/gameStore';
 
 export type Seat = 0 | 1;
-export type RoomPhase = 'waiting' | 'playing' | 'round-end' | 'finished';
+export type RoomPhase = 'waiting' | 'playing' | 'round-end' | 'finished' | 'closed';
 export type RoomAction =
   | { type: 'ready'; ready: boolean }
   | { type: 'start' }
@@ -22,6 +22,21 @@ export interface OnlinePlayer {
   cuffed: boolean;
 }
 
+export interface RoomEvent {
+  id: number;
+  type: 'joined' | 'left' | 'disconnected' | 'reconnected' | 'closed' | 'resigned' | 'timed-out';
+  actor: Seat | null;
+  message: string;
+  at: number;
+}
+
+export interface RoomClosure {
+  reason: 'left' | 'expired' | 'connection-timeout' | 'resigned';
+  actor: Seat | null;
+  message: string;
+  at: number;
+}
+
 export interface RoomView {
   code: string;
   revision: number;
@@ -34,6 +49,8 @@ export interface RoomView {
   counts: Record<ShellType, number>;
   knownShells: Array<{ position: number; type: ShellType }>;
   logs: string[];
+  events: RoomEvent[];
+  closure: RoomClosure | null;
 }
 
 export interface RoomSession {

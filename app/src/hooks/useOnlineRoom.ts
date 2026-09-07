@@ -23,6 +23,7 @@ export function useOnlineRoom() {
       try {
         const view = await requestOnline<RoomView>(`/${session.code}`, 'GET', undefined, session);
         if (!stopped) accept(view);
+        if (view.phase === 'closed') return;
       } catch (err) {
         if (stopped) return;
         setConnected(false);
@@ -86,5 +87,13 @@ export function useOnlineRoom() {
     finally { lock.current = false; setBusy(false); }
   };
 
-  return { room, session, connected, busy, error, enter, act, leave };
+  const dismiss = () => {
+    saveSession(null);
+    setSession(null);
+    setRoom(null);
+    setError('');
+    setConnected(false);
+  };
+
+  return { room, session, connected, busy, error, enter, act, leave, dismiss };
 }

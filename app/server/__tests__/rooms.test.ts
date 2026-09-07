@@ -98,9 +98,11 @@ describe('password-protected two-seat rooms', () => {
     const host = await rooms.create('甲', 'secret');
     const guest = await rooms.join(host.session.code, '乙', 'secret');
     rooms.leave(guest.session.code, guest.session.token);
-    expect(() => rooms.read(host.session.code, host.session.token)).toThrow('关闭');
+    expect(rooms.read(host.session.code, host.session.token).closure?.message).toContain('乙');
     const idle = await rooms.create('甲', 'secret');
     now += 31 * 60_000;
+    expect(rooms.read(idle.session.code, idle.session.token).closure?.reason).toBe('expired');
+    now += 5 * 60_000;
     expect(() => rooms.read(idle.session.code, idle.session.token)).toThrow('关闭');
   });
 });

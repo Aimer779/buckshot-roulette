@@ -91,6 +91,9 @@ describe('online HTTP contract', () => {
     await act(host, { type: 'rematch' });
     expect((await act(guest, { type: 'rematch' })).round).toBe(1);
     expect((await request(`/${host.session.code}`, 'DELETE', undefined, host.session.token)).status).toBe(200);
-    expect((await request(`/${guest.session.code}`, 'GET', undefined, guest.session.token)).status).toBe(404);
+    const closed = await request(`/${guest.session.code}`, 'GET', undefined, guest.session.token);
+    expect(closed.status).toBe(200);
+    expect(closed.body.phase).toBe('closed');
+    expect(closed.body.closure.message).toContain('甲');
   });
 });
