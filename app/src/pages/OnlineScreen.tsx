@@ -9,11 +9,12 @@ import RoomEnded from '@/components/gameplay/RoomEnded';
 import RoomConnection from '@/components/gameplay/RoomConnection';
 import RoomInvite from '@/components/gameplay/RoomInvite';
 import { useOnlineTurnAlert } from '@/hooks/useOnlineTurnAlert';
+import ConnectionStatus from '@/components/gameplay/ConnectionStatus';
 
 export default function OnlineScreen() {
   const requestedRoom = new URLSearchParams(window.location.search).get('room') ?? '';
   const inviteCode = /^\d{6}$/.test(requestedRoom) ? requestedRoom : '';
-  const { room, session, connected, busy, error, enter, act, leave, dismiss } = useOnlineRoom();
+  const { room, session, connected, latencyMs, busy, error, enter, act, leave, dismiss } = useOnlineRoom();
   const turnAlert = useOnlineTurnAlert(room, connected);
   const [mode, setMode] = useState<'create' | 'join'>(() => inviteCode ? 'join' : 'create');
   const [name, setName] = useState('');
@@ -66,6 +67,7 @@ export default function OnlineScreen() {
             </button>
           </div>
           {!connected && <p role="status" className="mb-4 rounded bg-amber-950/60 p-3 text-amber-200">正在连接房间… 连接恢复后自动同步，暂时无法操作。</p>}
+          {room?.phase !== 'closed' && <ConnectionStatus connected={connected} latencyMs={latencyMs} />}
           {room && <RoomActivity events={room.events} />}
           {room && <RoomConnection room={room} />}
           <div className="mb-4 flex justify-end">

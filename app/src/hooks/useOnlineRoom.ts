@@ -8,6 +8,8 @@ export function useOnlineRoom() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [connected, setConnected] = useState(false);
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  const healthSampleAt = useRef(0);
   const lock = useRef(false);
 
   const accept = useCallback((view: RoomView) => {
@@ -16,17 +18,29 @@ export function useOnlineRoom() {
   }, []);
 
   useEffect(() => {
+    const offline = () => { setConnected(false); setLatencyMs(null); };
+    window.addEventListener('offline', offline);
+    return () => window.removeEventListener('offline', offline);
+  }, []);
+
+  useEffect(() => {
     if (!session) return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
+      const started = performance.now();
       try {
         const view = await requestOnline<RoomView>(`/${session.code}`, 'GET', undefined, session);
         if (!stopped) accept(view);
+        if (!stopped && (healthSampleAt.current === 0 || performance.now() - healthSampleAt.current >= 5000)) {
+          setLatencyMs(Math.round(performance.now() - started));
+          healthSampleAt.current = performance.now();
+        }
         if (view.phase === 'closed') return;
       } catch (err) {
         if (stopped) return;
         setConnected(false);
+        setLatencyMs(null);
         if (err instanceof OnlineError && [401, 404].includes(err.status)) {
           saveSession(null);
           setSession(null);
@@ -96,7 +110,8 @@ export function useOnlineRoom() {
     setRoom(null);
     setError('');
     setConnected(false);
+    setLatencyMs(null);
   };
 
-  return { room, session, connected, busy, error, enter, act, leave, dismiss };
+  return { room, session, connected, latencyMs, busy, error, enter, act, leave, dismiss };
 }
