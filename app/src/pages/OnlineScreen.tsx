@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { Bell, BellOff, LockKeyhole, LogOut, Users } from 'lucide-react';
+import { ArrowLeft, Bell, BellOff, LockKeyhole, LogOut, Users } from 'lucide-react';
 import { useOnlineRoom } from '@/hooks/useOnlineRoom';
 import OnlineTable from '@/components/gameplay/OnlineTable';
 import OnlineLobby from '@/components/gameplay/OnlineLobby';
@@ -31,9 +31,10 @@ export default function OnlineScreen() {
         <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div><p className="mb-2 font-pixel text-xs tracking-[.3em] text-red-400">BUCKSHOT ROULETTE / ONLINE</p>
             <h1 className="flex items-center gap-3 text-3xl font-bold"><Users aria-hidden="true" />双人联机</h1></div>
-          <Link className="rounded px-2 py-2 text-sm text-stone-400 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" to="/"
+          <Link className="group inline-flex min-h-11 shrink-0 items-center justify-center gap-2.5 rounded-lg border border-[color-mix(in_srgb,var(--accent-gold)_35%,transparent)] bg-[color-mix(in_srgb,var(--bg-dark)_90%,transparent)] px-4 py-2.5 text-sm font-medium text-[var(--text-primary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-colors hover:border-[var(--accent-gold)] hover:bg-[var(--bg-surface)] hover:text-[var(--accent-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-dark)] motion-reduce:transition-none" to="/"
             title={session ? '保留当前标签页的重连凭证；回到联机页面可重新连接。' : undefined}>
-            {session ? '暂时返回主菜单' : '返回主菜单'}
+            <ArrowLeft className="h-4 w-4 text-[var(--accent-gold)] transition-transform group-hover:-translate-x-0.5 motion-reduce:transform-none motion-reduce:transition-none" aria-hidden="true" />
+            <span>{session ? '暂时返回主菜单' : '返回主菜单'}</span>
           </Link>
         </header>
         {error && <p role="alert" className="mb-4 rounded border border-red-500/50 bg-red-950/50 p-3 text-red-200">{error}</p>}
@@ -56,7 +57,7 @@ export default function OnlineScreen() {
               <input className={inputClass} value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} required pattern="[0-9]{6}" inputMode="numeric" placeholder="例如 123456" /></label>}
             <label className="flex flex-col gap-2 text-sm"><span className="flex items-center gap-2"><LockKeyhole className="h-4 w-4" />房间密码</span>
               <input className={inputClass} value={password} onChange={e => setPassword(e.target.value)} required minLength={4} maxLength={64} type="password" autoComplete={mode === 'create' ? 'new-password' : 'current-password'} placeholder={mode === 'create' ? '设置 4–64 字密码' : '输入房主提供的密码'} /></label>
-            <button className="btn-primary mt-2 w-full disabled:opacity-40" disabled={busy || !name.trim()}>{busy ? '正在连接…' : mode === 'create' ? '创建双人房间' : '加入房间'}</button>
+            <button className="btn-primary mt-2 w-full !min-w-0 disabled:opacity-40" disabled={busy || !name.trim()}>{busy ? '正在连接…' : mode === 'create' ? '创建双人房间' : '加入房间'}</button>
           </form>
         </section> : <>
           <div className="mb-5 flex flex-wrap items-start justify-between gap-4 rounded border border-white/15 bg-black/60 p-4">
