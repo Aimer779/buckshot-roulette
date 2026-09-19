@@ -9,6 +9,7 @@ import {
   type JevHud,
 } from '@/lib/dealerStrategies';
 import { fetchJevDealerTurn, localJevFallback } from '@/lib/dealerStrategies/jev/client';
+import { resolveForcedDealerTurn } from '@/lib/dealerStrategies/jev/forced';
 import { ACTION_LABELS, type JevDealerState } from '@/lib/dealerStrategies/jev/types';
 import { countShells, getRemainingShells } from '@/lib/shellFlow';
 import { resolveShotOutcome, type ShotOutcome } from '@/lib/shotResolution';
@@ -50,6 +51,7 @@ function buildDealerContext(s: ReturnType<typeof useGameStore.getState>): Dealer
     playerMaxHP: s.playerMaxHP,
     skipPlayerTurn: s.skipPlayerTurn,
     currentRound: s.currentRound,
+    knownChamber: s.dealerKnownChamber,
   };
 }
 
@@ -70,6 +72,7 @@ function buildJevDealerState(s: ReturnType<typeof useGameStore.getState>): JevDe
     skipPlayerTurn: s.skipPlayerTurn,
     currentRound: s.currentRound,
     confidenceMin: s.jevConfidenceMin,
+    knownChamber: s.dealerKnownChamber,
   };
 }
 
@@ -107,14 +110,18 @@ function logJevHud(
   hud: JevHud,
   addLog: (message: string, type: 'info' | 'damage' | 'heal' | 'item' | 'system') => void
 ) {
+  const label = ACTION_LABELS[hud.action] ?? hud.action;
+  if (hud.ruleFired === 'forced') {
+    addLog(`规则层 ${label}（${hud.reason ?? 'known'}）`, 'system');
+    return;
+  }
   if (hud.fallback) {
-    const why = hud.reason === 'no-key' ? '未配置密钥' : hud.reason === 'timeout' ? '超时' : hud.reason === 'low-confidence' ? '置信不足' : '不可用';
+    const why = hud.reason === 'no-key' ? '未配置密钥' : hud.reason === 'timeout' ? '超时' : '不可用';
     addLog(`Jev ${why}，回退均衡型`, 'system');
     return;
   }
-  const label = ACTION_LABELS[hud.action] ?? hud.action;
   addLog(
-    `Jev 选择 ${label} · 置信 ${hud.confidence.toFixed(2)} · ${hud.latencyMs}ms`,
+    `Jev ${label} · 实弹判断 ${hud.liveBelief.toFixed(2)} · ${hud.latencyMs}ms`,
     'system'
   );
 }
@@ -246,21 +253,30 @@ export function useDealerTurn({
         let turnDecision: DealerTurnDecision;
 
         if (strategy.id === JEV_STRATEGY_ID) {
-          const jevState = buildJevDealerState(s);
-          const jevSignal = abortAfter(abort.signal, 3000);
-          const [jevResult] = await Promise.all([
-            fetchJevDealerTurn(jevState, jevSignal).catch((err: unknown) => {
-              if (abort.signal.aborted) return localJevFallback(jevState, 'aborted');
-              const name = err instanceof Error ? err.name : '';
-              const reason = name === 'AbortError' || name === 'TimeoutError' ? 'timeout' : 'network';
-              return localJevFallback(jevState, reason);
-            }),
-            delay(thinkMs, abort.signal),
-          ]);
-          if (abort.signal.aborted) return;
-          setJevHud(jevResult.hud);
-          logJevHud(jevResult.hud, addLog);
-          turnDecision = jevResult.turn;
+          const forced = resolveForcedDealerTurn(ctx);
+          if (forced) {
+            await delay(thinkMs, abort.signal);
+            if (abort.signal.aborted) return;
+            setJevHud(forced.hud);
+            logJevHud(forced.hud, addLog);
+            turnDecision = forced.turn;
+          } else {
+            const jevState = buildJevDealerState(s);
+            const jevSignal = abortAfter(abort.signal, 3000);
+            const [jevResult] = await Promise.all([
+              fetchJevDealerTurn(jevState, jevSignal).catch((err: unknown) => {
+                if (abort.signal.aborted) return localJevFallback(jevState, 'aborted');
+                const name = err instanceof Error ? err.name : '';
+                const reason = name === 'AbortError' || name === 'TimeoutError' ? 'timeout' : 'network';
+                return localJevFallback(jevState, reason);
+              }),
+              delay(thinkMs, abort.signal),
+            ]);
+            if (abort.signal.aborted) return;
+            setJevHud(jevResult.hud);
+            logJevHud(jevResult.hud, addLog);
+            turnDecision = jevResult.turn;
+          }
         } else {
           turnDecision = resolveDealerTurnDecision(strategy, ctx);
           await delay(thinkMs, abort.signal);

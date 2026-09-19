@@ -9,6 +9,7 @@ export {
   clampJevConfidenceMin,
 } from './jev/types';
 export type { JevHud, JevDealerResponse } from './jev/types';
+export { resolveForcedDealerTurn } from './jev/forced';
 export {
   resolveDealerTurnDecision,
   type DealerTurnDecision,

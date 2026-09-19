@@ -208,7 +208,7 @@ export default function GameplayOverlays({
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center justify-between">
                     <span className="font-chinese text-sm" style={{ color: 'var(--text-primary)' }}>
-                      Jev 置信阈值
+                      打对手所需实弹判断
                     </span>
                     <span className="font-chinese text-sm tabular-nums" style={{ color: 'var(--accent-gold)' }}>
                       {Math.round(jevConfidenceMin * 100)}%

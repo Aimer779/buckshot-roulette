@@ -32,7 +32,7 @@ describe('resolveJevProvider', () => {
     expect(resolved).toMatchObject({
       provider: 'typesafe',
       url: 'https://api.typesafe.ai/v1/systemone',
-      model: 'jev-latest',
+      model: 'jev-1.13.0',
     });
   });
 
@@ -90,7 +90,7 @@ describe('callJev', () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://api.typesafe.ai/v1/systemone');
     const body = JSON.parse(String(init.body));
-    expect(body.model).toBe('jev-latest');
+    expect(body.model).toBe('jev-1.13.0');
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer ts_test');
   });
 
@@ -137,11 +137,10 @@ describe('resolveJevDealerTurn', () => {
           ok: true,
           reason: 'ok',
           answers: {
-            action: { choice: 'use-handsaw', confidence: 0.88, probabilities: { 'use-handsaw': 0.6 } },
-            shoot_target: { choice: 'player' },
-            live_belief: { score: 3.1 },
+            chamber_likely_live: { noul: 0.82 },
+            should_double: { noul: 0.91 },
           },
-          model: 'jev-latest',
+          model: 'jev-1.13.0',
           provider: 'typesafe',
           latencyMs: 90,
         }),
@@ -165,10 +164,9 @@ describe('resolveJevDealerTurn', () => {
           ok: true,
           reason: 'ok',
           answers: {
-            action: { choice: 'shoot-player', confidence: 0.2, probabilities: { 'shoot-player': 0.45 } },
-            shoot_target: { choice: 'player' },
+            chamber_likely_live: { noul: 0.2 },
           },
-          model: 'jev-latest',
+          model: 'jev-1.13.0',
           provider: 'typesafe',
           latencyMs: 40,
         }),

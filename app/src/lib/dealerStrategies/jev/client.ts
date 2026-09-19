@@ -24,6 +24,7 @@ export function toJevRequestBody(state: JevDealerState): JevDealerState {
     skipPlayerTurn: state.skipPlayerTurn,
     currentRound: state.currentRound,
     confidenceMin: clampJevConfidenceMin(state.confidenceMin ?? JEV_CONFIDENCE_THRESHOLD),
+    knownChamber: state.knownChamber ?? null,
   };
 }
 
@@ -37,13 +38,15 @@ export function localJevFallback(state: JevDealerState, reason: string): JevDeal
       action: 'fallback',
       confidence: 0,
       probabilities: {},
-      liveBelief: 2,
+      nouls: {},
+      liveBelief: 0.5,
       shootTarget: 'player',
       latencyMs: 0,
       model: 'balanced',
       provider: 'none',
       fallback: true,
       reason,
+      ruleFired: 'fallback',
     },
   };
 }

@@ -1,30 +1,20 @@
 import { balancedStrategy } from '../balancedStrategy';
-import { itemIdForAction, legalDealerActions } from '../legalActions';
 import {
   resolveDealerTurnDecision,
   type DealerTurnDecision,
 } from '../resolveDealerTurn';
 import type { DealerContext } from '../types';
+import { composeJevTurn } from './compose';
 import {
+  clampJevConfidenceMin,
   JEV_CONFIDENCE_THRESHOLD,
   type JevAnswers,
   type JevDealerResponse,
   type JevHud,
   type JevProvider,
 } from './types';
+import { JEV_POLICY_VERSION } from './policy';
 import { toDealerContextFromJevState } from './buildJevRequest';
-
-export function heuristicShootTarget(ctx: DealerContext): 'self' | 'dealer' {
-  const total = ctx.liveCount + ctx.blankCount;
-  if (total === 0) return 'dealer';
-  return ctx.blankCount / total > 0.5 ? 'self' : 'dealer';
-}
-
-function mapShootChoice(choice: string | undefined, ctx: DealerContext): 'self' | 'dealer' {
-  if (choice === 'self') return 'self';
-  if (choice === 'player') return 'dealer';
-  return heuristicShootTarget(ctx);
-}
 
 export function fallbackTurn(ctx: DealerContext): DealerTurnDecision {
   return resolveDealerTurnDecision(balancedStrategy, toDealerContextFromJevState(ctx));
@@ -43,58 +33,52 @@ export function answersToDecision(
   }
 ): JevDealerResponse {
   const publicCtx = toDealerContextFromJevState(ctx);
-  const legal = legalDealerActions(publicCtx);
-  const threshold = meta.confidenceMin ?? JEV_CONFIDENCE_THRESHOLD;
-  const rawAction = answers?.action?.choice;
-  const confidence = answers?.action?.confidence ?? 0;
-  const probabilities = answers?.action?.probabilities ?? {};
-  const liveBelief = answers?.live_belief?.score ?? 2;
-  const shootChoice = answers?.shoot_target?.choice;
-  const mappedShoot = mapShootChoice(shootChoice, publicCtx);
-  const hudShoot: 'self' | 'player' = mappedShoot === 'self' ? 'self' : 'player';
+  const shootT = clampJevConfidenceMin(meta.confidenceMin ?? JEV_CONFIDENCE_THRESHOLD);
 
-  const illegal = !rawAction || !legal.includes(rawAction);
-  const unconfident = confidence < threshold;
-  const useFallback = meta.fallback || illegal || unconfident;
-
-  const hud: JevHud = {
-    action: useFallback
-      ? (rawAction && legal.includes(rawAction) ? rawAction : 'fallback')
-      : rawAction,
-    confidence,
-    probabilities,
-    liveBelief,
-    shootTarget: hudShoot,
-    latencyMs: meta.latencyMs,
-    model: meta.model,
-    provider: meta.provider,
-    fallback: useFallback,
-    reason: useFallback
-      ? meta.reason ?? (illegal ? 'illegal-action' : unconfident ? 'low-confidence' : 'fallback')
-      : undefined,
-  };
-
-  if (useFallback) {
+  if (meta.fallback) {
+    const composed = composeJevTurn(publicCtx, answers, shootT);
+    const hud: JevHud = {
+      action: 'fallback',
+      confidence: 0,
+      probabilities: composed.nouls,
+      nouls: composed.nouls,
+      liveBelief: composed.liveBelief,
+      shootTarget: composed.turn.action === 'shoot' && composed.turn.target === 'self' ? 'self' : 'player',
+      latencyMs: meta.latencyMs,
+      model: meta.model,
+      provider: meta.provider,
+      fallback: true,
+      reason: meta.reason ?? 'fallback',
+      ruleFired: 'fallback',
+      policyVersion: JEV_POLICY_VERSION,
+    };
     return { ok: false, fallback: true, turn: fallbackTurn(publicCtx), hud };
   }
 
-  let turn: DealerTurnDecision;
-  if (rawAction === 'shoot-self') {
-    turn = { action: 'shoot', target: 'self' };
-  } else if (rawAction === 'shoot-player') {
-    turn = { action: 'shoot', target: 'dealer' };
-  } else {
-    const itemId = itemIdForAction(publicCtx, rawAction);
-    if (!itemId) {
-      return {
-        ok: false,
-        fallback: true,
-        turn: fallbackTurn(publicCtx),
-        hud: { ...hud, fallback: true, reason: 'missing-item' },
-      };
-    }
-    turn = { action: 'use-item', itemId, shootTarget: mappedShoot };
-  }
+  const composed = composeJevTurn(publicCtx, answers, shootT);
+  const shootTarget: 'self' | 'player' =
+    composed.turn.action === 'shoot'
+      ? composed.turn.target === 'self'
+        ? 'self'
+        : 'player'
+      : composed.turn.shootTarget === 'self'
+        ? 'self'
+        : 'player';
 
-  return { ok: true, fallback: false, turn, hud };
+  const hud: JevHud = {
+    action: composed.action,
+    confidence: composed.liveBelief,
+    probabilities: composed.nouls,
+    nouls: composed.nouls,
+    liveBelief: composed.liveBelief,
+    shootTarget,
+    latencyMs: meta.latencyMs,
+    model: meta.model,
+    provider: meta.provider,
+    fallback: false,
+    ruleFired: 'jev',
+    policyVersion: JEV_POLICY_VERSION,
+  };
+
+  return { ok: true, fallback: false, turn: composed.turn, hud };
 }

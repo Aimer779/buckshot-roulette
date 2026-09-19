@@ -56,6 +56,7 @@ const PLAYER_ITEM_POOL: ItemType[] = [
 ];
 
 const DEALER_ITEM_POOL: ItemType[] = [
+  'magnifier',
   'handcuffs',
   'cigarette',
   'beer',
@@ -68,7 +69,7 @@ const DEALER_ITEM_POOL: ItemType[] = [
 
 /**
  * Get random items for a round.
- * Items may repeat. Dealer does not receive magnifier until AI can use private info.
+ * Items may repeat. Dealer magnifier writes dealerKnownChamber only (never shown to the player).
  */
 export function distributeItems(round: number): { player: Item[]; dealer: Item[] } {
   const config = ROUND_CONFIG[round] || ROUND_CONFIG[3];

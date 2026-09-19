@@ -49,12 +49,17 @@ describe('legalDealerActions', () => {
     expect(actions).toContain('use-handsaw');
   });
 
-  it('omits phone and magnifier in v1', () => {
-    const actions = legalDealerActions(
-      ctx({ dealerItems: [makeItem('phone'), makeItem('magnifier')] })
+  it('includes magnifier only while the chamber is unknown; still omits phone', () => {
+    const mag = makeItem('magnifier');
+    const phone = makeItem('phone');
+    expect(legalDealerActions(ctx({ dealerItems: [mag, phone] }))).toContain('use-magnifier');
+    expect(legalDealerActions(ctx({ dealerItems: [mag, phone] }))).not.toContain('use-phone');
+    expect(
+      legalDealerActions(ctx({ dealerItems: [mag], knownChamber: 'live' }))
+    ).not.toContain('use-magnifier');
+    expect(legalDealerActions(ctx({ liveCount: 3, blankCount: 0, dealerItems: [mag] }))).not.toContain(
+      'use-magnifier'
     );
-    expect(actions).not.toContain('use-phone');
-    expect(actions).not.toContain('use-magnifier');
   });
 
   it('omits handcuffs when only 2 shells remain or the player is already cuffed', () => {
@@ -98,18 +103,19 @@ describe('legalDealerActions', () => {
 
 describe('buildJevRequest', () => {
   it('never puts shell order or currentShellIndex into state', () => {
-    const request = buildJevRequest(ctx({ dealerItems: [makeItem('handsaw')] }), 'jev-latest');
+    const request = buildJevRequest(ctx({ dealerItems: [makeItem('handsaw')] }), 'jev-1.13.0');
     expect(Object.keys(request.state)).not.toContain('shells');
     expect(Object.keys(request.state)).not.toContain('currentShellIndex');
     expect(JSON.stringify(request)).not.toContain('"shells"');
+    expect(request.state.facts.liveRatio).toBeCloseTo(0.6);
   });
 
-  it('restricts Choice criteria to legal actions', () => {
+  it('asks atomic Nouls, not a mixed action Choice', () => {
     const saw = makeItem('handsaw');
-    const request = buildJevRequest(ctx({ dealerItems: [saw] }), 'jev-latest');
-    expect(Object.keys(request.questions.action.criteria).sort()).toEqual(
-      ['shoot-player', 'shoot-self', 'use-handsaw'].sort()
-    );
+    const request = buildJevRequest(ctx({ dealerItems: [saw] }), 'jev-1.13.0');
+    expect(request.questions.action).toBeUndefined();
+    expect(request.questions.chamber_likely_live.type).toBe('noul');
+    expect(request.questions.should_double.type).toBe('noul');
     expect(request.state.dealerItems).toEqual(['handsaw']);
   });
 });
@@ -117,27 +123,26 @@ describe('buildJevRequest', () => {
 describe('answersToDecision', () => {
   const meta = {
     latencyMs: 120,
-    model: 'jev-latest',
+    model: 'jev-1.13.0',
     provider: 'typesafe' as const,
     fallback: false,
   };
 
-  it('maps a legal shoot-player choice to the dealer target', () => {
+  it('shoots the player when chamber_likely_live is above shootT', () => {
     const result = answersToDecision(ctx(), {
-      action: { choice: 'shoot-player', confidence: 0.8, probabilities: { 'shoot-player': 0.8 } },
-      shoot_target: { choice: 'self' },
-      live_belief: { score: 3.2 },
+      chamber_likely_live: { noul: 0.8 },
     }, meta);
     expect(result.ok).toBe(true);
+    expect(result.fallback).toBe(false);
+    expect(result.hud.ruleFired).toBe('jev');
     expect(result.turn).toEqual({ action: 'shoot', target: 'dealer' });
-    expect(result.hud.liveBelief).toBe(3.2);
   });
 
-  it('locks the post-item shoot target from the independent shoot_target question', () => {
+  it('uses the handsaw when should_double and chamber look live', () => {
     const saw = makeItem('handsaw');
     const result = answersToDecision(ctx({ dealerItems: [saw] }), {
-      action: { choice: 'use-handsaw', confidence: 0.9, probabilities: { 'use-handsaw': 0.7 } },
-      shoot_target: { choice: 'player' },
+      chamber_likely_live: { noul: 0.8 },
+      should_double: { noul: 0.9 },
     }, meta);
     expect(result.ok).toBe(true);
     expect(result.turn).toEqual({
@@ -147,30 +152,43 @@ describe('answersToDecision', () => {
     });
   });
 
-  it('falls back when the choice is not legal', () => {
+  it('does not fall back just because no mixed Choice confidence exists', () => {
     const result = answersToDecision(ctx(), {
-      action: { choice: 'use-handsaw', confidence: 0.99 },
+      chamber_likely_live: { noul: 0.2 },
     }, meta);
-    expect(result.fallback).toBe(true);
-    expect(result.hud.reason).toBe('illegal-action');
-    expect(result.turn.action).toBe('shoot');
+    expect(result.fallback).toBe(false);
+    expect(result.turn).toEqual({ action: 'shoot', target: 'self' });
   });
 
-  it('falls back when confidence is below the threshold', () => {
+  it('uses shootT from the settings slider', () => {
     const result = answersToDecision(ctx(), {
-      action: { choice: 'shoot-player', confidence: 0.2, probabilities: { 'shoot-player': 0.4 } },
-    }, meta);
-    expect(result.fallback).toBe(true);
-    expect(result.hud.reason).toBe('low-confidence');
-  });
-
-  it('accepts a low-confidence choice when the threshold is lowered', () => {
-    const result = answersToDecision(ctx(), {
-      action: { choice: 'shoot-player', confidence: 0.2, probabilities: { 'shoot-player': 0.4 } },
+      chamber_likely_live: { noul: 0.2 },
     }, { ...meta, confidenceMin: 0.1 });
     expect(result.ok).toBe(true);
-    expect(result.fallback).toBe(false);
     expect(result.turn).toEqual({ action: 'shoot', target: 'dealer' });
+  });
+});
+
+describe('forced dealer turns', () => {
+  it('shoots self on a known blank without calling compose', async () => {
+    const { resolveForcedDealerTurn } = await import('../forced');
+    const result = resolveForcedDealerTurn(ctx({ liveCount: 0, blankCount: 3, shellsRemaining: 3 }));
+    expect(result?.hud.ruleFired).toBe('forced');
+    expect(result?.turn).toEqual({ action: 'shoot', target: 'self' });
+  });
+
+  it('saws then shoots the player on a known live', async () => {
+    const { resolveForcedDealerTurn } = await import('../forced');
+    const saw = makeItem('handsaw');
+    const result = resolveForcedDealerTurn(
+      ctx({ liveCount: 2, blankCount: 0, shellsRemaining: 2, dealerItems: [saw] })
+    );
+    expect(result?.hud.reason).toBe('known-live-saw');
+    expect(result?.turn).toEqual({
+      action: 'use-item',
+      itemId: saw.id,
+      shootTarget: 'dealer',
+    });
   });
 });
 
@@ -191,6 +209,7 @@ describe('toJevRequestBody', () => {
       skipPlayerTurn: false,
       currentRound: 2,
       confidenceMin: 0.2,
+      knownChamber: null,
     };
     const body = toJevRequestBody(state);
     expect(body.confidenceMin).toBe(0.2);
@@ -203,6 +222,7 @@ describe('toJevRequestBody', () => {
       'dealerMaxHP',
       'dealerSawActive',
       'guillotineTriggered',
+      'knownChamber',
       'liveCount',
       'playerHP',
       'playerItems',

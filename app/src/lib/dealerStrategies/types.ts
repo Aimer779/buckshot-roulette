@@ -22,6 +22,8 @@ export interface DealerContext {
   /** True when the player is already skipped next turn (handcuffs spent). */
   skipPlayerTurn?: boolean;
   currentRound?: number;
+  /** Dealer-private peek of the current chamber. Never shown to the player. */
+  knownChamber?: 'live' | 'blank' | null;
 }
 
 export interface DealerDecision {

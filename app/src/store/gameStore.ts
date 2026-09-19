@@ -85,6 +85,8 @@ export interface GameState {
   itemEffectTipsEnabled: boolean;
   dealerStrategyId: string;
   jevConfidenceMin: number;
+  /** Dealer-private current-chamber peek. Not shown to the player. */
+  dealerKnownChamber: ShellType | null;
 
   // Game log
   logs: GameLog[];
@@ -123,6 +125,7 @@ export interface GameState {
   setItemEffectTipsEnabled: (enabled: boolean) => void;
   setDealerStrategyId: (id: string) => void;
   setJevConfidenceMin: (value: number) => void;
+  setDealerKnownChamber: (value: ShellType | null) => void;
   setWinner: (winner: 'player' | 'dealer' | null) => void;
 
   // Convenience
@@ -253,6 +256,7 @@ const initialState = {
   itemEffectTipsEnabled: readItemEffectTipsPreference(),
   dealerStrategyId: readDealerStrategyId(),
   jevConfidenceMin: readJevConfidenceMin(),
+  dealerKnownChamber: null as ShellType | null,
   logs: [] as GameLog[],
   lastReadLogId: null as string | null,
   winner: null as 'player' | 'dealer' | null,
@@ -302,7 +306,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   loadShells: (shells) =>
-    set({ shells, currentShellIndex: 0 }),
+    set({ shells, currentShellIndex: 0, dealerKnownChamber: null }),
 
   revealShell: (index) =>
     set((s) => ({
@@ -313,7 +317,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     const s = get();
     if (s.currentShellIndex >= s.shells.length) return null;
     const shell = s.shells[s.currentShellIndex];
-    set({ currentShellIndex: s.currentShellIndex + 1 });
+    set({ currentShellIndex: s.currentShellIndex + 1, dealerKnownChamber: null });
     return shell;
   },
 
@@ -367,6 +371,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         skipDealerTurn: false,
         skipPlayerTurn: false,
         guillotineTriggered: false,
+        dealerKnownChamber: null,
         phase: 'ROUND_START',
       });
     }
@@ -389,6 +394,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       skipDealerTurn: false,
       skipPlayerTurn: false,
       guillotineTriggered: false,
+      dealerKnownChamber: null,
       phase: 'ROUND_START',
     });
   },
@@ -456,6 +462,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     writeJevConfidenceMin(jevConfidenceMin);
     set({ jevConfidenceMin });
   },
+
+  setDealerKnownChamber: (value) => set({ dealerKnownChamber: value }),
 
   setWinner: (winner) => set({ winner }),
 

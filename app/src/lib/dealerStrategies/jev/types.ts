@@ -26,14 +26,18 @@ export interface JevDealerState {
   guillotineTriggered: boolean;
   skipPlayerTurn: boolean;
   currentRound: number;
-  /** Accept Jev's choice only when action.confidence is at least this. */
+  /** Maps onto shootT: how live the chamber must look before shooting the player. */
   confidenceMin?: number;
+  knownChamber?: 'live' | 'blank' | null;
 }
+
+export type JevRuleFired = 'forced' | 'jev' | 'fallback';
 
 export interface JevHud {
   action: string;
   confidence: number;
   probabilities: Record<string, number>;
+  nouls: Record<string, number>;
   liveBelief: number;
   shootTarget: 'self' | 'player';
   latencyMs: number;
@@ -41,6 +45,8 @@ export interface JevHud {
   provider: JevProvider;
   fallback: boolean;
   reason?: string;
+  ruleFired: JevRuleFired;
+  policyVersion?: string;
 }
 
 export interface JevDealerResponse {
@@ -68,10 +74,28 @@ export interface JevNoulAnswer {
 }
 
 export interface JevAnswers {
+  chamber_likely_live?: JevNoulAnswer;
+  should_spend_info?: JevNoulAnswer;
+  should_heal?: JevNoulAnswer;
+  should_double?: JevNoulAnswer;
+  should_deny_turn?: JevNoulAnswer;
+  should_invert?: JevNoulAnswer;
+  opponent_can_kill_next?: JevNoulAnswer;
+  /** @deprecated v2 mixed Choice; ignored by v3 compose. */
   action?: JevChoiceAnswer;
   shoot_target?: JevChoiceAnswer;
   live_belief?: JevScoreAnswer;
 }
+
+export const NOUL_LABELS: Record<string, string> = {
+  chamber_likely_live: '膛内实弹',
+  should_spend_info: '花信息',
+  should_heal: '回血',
+  should_double: '上手锯',
+  should_deny_turn: '上手铐',
+  should_invert: '反转',
+  opponent_can_kill_next: '对方能杀',
+};
 
 export const ACTION_CRITERIA: Record<string, string> = {
   'shoot-self':

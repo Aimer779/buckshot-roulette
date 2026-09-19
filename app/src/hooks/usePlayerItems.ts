@@ -245,6 +245,15 @@ export function usePlayerItems({
         revealShell,
         addLog,
       });
+      if (item.type === 'magnifier') {
+        const shell = useGameStore.getState().getCurrentShell();
+        if (shell) useGameStore.getState().setDealerKnownChamber(shell.type);
+      } else if (item.type === 'inverter') {
+        const known = useGameStore.getState().dealerKnownChamber;
+        if (known) {
+          useGameStore.getState().setDealerKnownChamber(known === 'live' ? 'blank' : 'live');
+        }
+      }
     },
     [
       heal,

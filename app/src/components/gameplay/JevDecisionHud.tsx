@@ -1,23 +1,26 @@
 import type { JevHud } from '@/lib/dealerStrategies';
-import { ACTION_LABELS, LIVE_BELIEF_LEVELS } from '@/lib/dealerStrategies/jev/types';
+import { ACTION_LABELS, NOUL_LABELS } from '@/lib/dealerStrategies/jev/types';
 
 interface JevDecisionHudProps {
   hud: JevHud;
 }
 
 function bar(probability: number) {
-  const pct = Math.round(Math.max(0, Math.min(1, probability)) * 100);
-  return pct;
+  return Math.round(Math.max(0, Math.min(1, probability)) * 100);
 }
 
 /**
- * Compact Jev probability readout under the dealer. Only mounted in Jev mode.
+ * Compact Jev readout under the dealer. Shows composed action and atomic Nouls.
  */
 export default function JevDecisionHud({ hud }: JevDecisionHudProps) {
-  const ranked = Object.entries(hud.probabilities).sort((a, b) => b[1] - a[1]).slice(0, 4);
-  const belief = Math.max(0, Math.min(LIVE_BELIEF_LEVELS.length - 1, Math.round(hud.liveBelief)));
-  const beliefLabel = LIVE_BELIEF_LEVELS[belief] ?? LIVE_BELIEF_LEVELS[2];
+  const noulEntries = Object.entries(hud.nouls ?? hud.probabilities).sort((a, b) => b[1] - a[1]);
   const actionLabel = ACTION_LABELS[hud.action] ?? hud.action;
+  const title =
+    hud.ruleFired === 'forced'
+      ? `规则层 · ${actionLabel}`
+      : hud.fallback
+        ? 'Jev 回退均衡型'
+        : `Jev · ${actionLabel}`;
 
   return (
     <div
@@ -28,29 +31,27 @@ export default function JevDecisionHud({ hud }: JevDecisionHudProps) {
       }}
     >
       <div className="flex items-baseline justify-between gap-2 font-chinese text-xs">
-        <span style={{ color: 'var(--accent-gold)' }}>
-          {hud.fallback ? 'Jev 回退均衡型' : `Jev · ${actionLabel}`}
-        </span>
+        <span style={{ color: 'var(--accent-gold)' }}>{title}</span>
         <span style={{ color: 'var(--text-dim)' }}>
-          {hud.fallback ? hud.reason ?? 'fallback' : `${hud.latencyMs}ms · ${hud.confidence.toFixed(2)}`}
+          {hud.fallback ? hud.reason ?? 'fallback' : `${hud.latencyMs}ms · ${hud.liveBelief.toFixed(2)}`}
         </span>
       </div>
-      {ranked.length > 0 && (
+      {noulEntries.length > 0 && (
         <ul className="mt-1.5 space-y-1">
-          {ranked.map(([action, probability]) => (
-            <li key={action} className="flex items-center gap-2">
+          {noulEntries.map(([key, probability]) => (
+            <li key={key} className="flex items-center gap-2">
               <span
                 className="w-16 shrink-0 truncate font-chinese text-[10px]"
                 style={{ color: 'var(--text-secondary)' }}
               >
-                {ACTION_LABELS[action] ?? action}
+                {NOUL_LABELS[key] ?? ACTION_LABELS[key] ?? key}
               </span>
               <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
                 <div
                   className="h-full rounded-full"
                   style={{
                     width: `${bar(probability)}%`,
-                    backgroundColor: action === hud.action && !hud.fallback ? 'var(--accent-gold)' : 'var(--text-dim)',
+                    backgroundColor: 'var(--accent-gold)',
                   }}
                 />
               </div>
@@ -61,9 +62,6 @@ export default function JevDecisionHud({ hud }: JevDecisionHudProps) {
           ))}
         </ul>
       )}
-      <p className="mt-1.5 font-chinese text-[10px]" style={{ color: 'var(--text-dim)' }}>
-        膛内信念 {hud.liveBelief.toFixed(1)} · {beliefLabel}
-      </p>
     </div>
   );
 }

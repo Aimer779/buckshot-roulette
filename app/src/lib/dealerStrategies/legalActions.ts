@@ -1,4 +1,5 @@
 import type { DealerContext } from './types';
+import { inferredKnownChamber } from './jev/facts';
 
 export const ITEM_ACTION: Record<string, string> = {
   magnifier: 'use-magnifier',
@@ -17,14 +18,15 @@ export const ACTION_ITEM_TYPE: Record<string, string> = Object.fromEntries(
 );
 
 /**
- * Legal dealer actions for Jev Choice options.
- * Phone and magnifier are omitted in v1 (no private knowledge store yet).
+ * Legal dealer actions. Phone is omitted until future-shell memory exists.
+ * Magnifier is legal only while the current chamber is unknown.
  */
 export function legalDealerActions(ctx: DealerContext): string[] {
   const actions: string[] = ['shoot-self', 'shoot-player'];
   const types = new Set(ctx.dealerItems.map((item) => item.type));
   const playerItems = ctx.playerItems ?? [];
   const playerCuffed = ctx.skipPlayerTurn === true;
+  const known = inferredKnownChamber(ctx);
 
   if (types.has('handcuffs') && !playerCuffed && ctx.shellsRemaining > 2) {
     actions.push('use-handcuffs');
@@ -45,11 +47,14 @@ export function legalDealerActions(ctx: DealerContext): string[] {
   if (types.has('adrenaline') && playerItems.length > 0) {
     actions.push('use-adrenaline');
   }
-  if (types.has('medicine') && !ctx.guillotineTriggered) {
+  if (types.has('medicine') && !ctx.guillotineTriggered && ctx.dealerHP > 1) {
     actions.push('use-medicine');
   }
   if (types.has('inverter') && ctx.shellsRemaining > 0) {
     actions.push('use-inverter');
+  }
+  if (types.has('magnifier') && known === null && ctx.shellsRemaining > 0) {
+    actions.push('use-magnifier');
   }
 
   return actions;

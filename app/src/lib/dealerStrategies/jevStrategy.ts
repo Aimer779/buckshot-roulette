@@ -6,7 +6,7 @@ export const jevStrategy: DealerStrategy = {
   id: JEV_STRATEGY_ID,
   name: 'Jev · System One',
   description:
-    'TypeSafe Jev 实时决策。只在合法动作里选，返回概率和置信度；失败时回退均衡型。',
+    '已知弹由规则走。未知弹由 Jev 回答原子问题，代码合成动作。失败才回退均衡型。',
 
   decide(ctx: DealerContext): DealerDecision {
     return balancedStrategy.decide(ctx);

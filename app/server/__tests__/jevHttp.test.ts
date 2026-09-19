@@ -97,14 +97,9 @@ describe('POST /api/dealer/jev', () => {
         json: async () => ({
           model: 'jev-1.13.0',
           answers: {
-            action: {
-              type: 'choice',
-              choice: 'use-handsaw',
-              confidence: 0.91,
-              probabilities: { 'use-handsaw': 0.7, 'shoot-player': 0.3 },
-            },
-            shoot_target: { type: 'choice', choice: 'player', confidence: 0.8 },
-            live_belief: { type: 'score', score: 3.4 },
+            chamber_likely_live: { type: 'noul', noul: 0.82 },
+            should_double: { type: 'noul', noul: 0.91 },
+            should_heal: { type: 'noul', noul: 0.1 },
           },
         }),
       };

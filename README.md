@@ -94,6 +94,7 @@ cp .env.example .env   # Windows: copy .env.example .env
 - 也可显式设 `JEV_PROVIDER=typesafe` 或 `openrouter`
 - 未配置密钥时 Jev 模式自动回退均衡型，游戏仍可玩
 - 改 `.env` 后需重启 `pnpm dev`
+- 政策说明与审核材料：[`docs/jev-dealer.md`](docs/jev-dealer.md)
 
 如果本机用 pnpm 11 运行旧版 pnpm 已安装的依赖时，遇到自动重装检查或 `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`，可用 `pnpm --config.verifyDepsBeforeRun=false run dev` 复用当前依赖；同样的参数也可用于 `build`、`test`、`lint`。
 

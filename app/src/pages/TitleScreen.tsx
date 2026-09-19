@@ -303,7 +303,7 @@ function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                 <div className="flex flex-col gap-1.5 pt-1">
                   <div className="flex items-center justify-between">
                     <span className="font-chinese text-sm" style={{ color: 'var(--text-primary)' }}>
-                      Jev 置信阈值
+                      打对手所需实弹判断
                     </span>
                     <span className="font-chinese text-sm tabular-nums" style={{ color: 'var(--accent-gold)' }}>
                       {Math.round(jevConfidenceMin * 100)}%
@@ -321,7 +321,7 @@ function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                     style={{ backgroundColor: 'var(--bg-elevated)' }}
                   />
                   <span className="font-chinese text-xs" style={{ color: 'var(--text-dim)' }}>
-                    模型置信度低于此值时回退均衡型。越低越听 Jev，越高越稳。
+                    打对手所需的膛内实弹判断。越低越敢打对方，越高越倾向打自己。已确定的弹型由规则层直接走，不再问 Jev。
                   </span>
                 </div>
               )}

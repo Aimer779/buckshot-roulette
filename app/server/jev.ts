@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { answersToDecision, fallbackTurn } from '../src/lib/dealerStrategies/jev/answersToDecision';
 import { buildJevRequest } from '../src/lib/dealerStrategies/jev/buildJevRequest';
+import { resolveForcedDealerTurn } from '../src/lib/dealerStrategies/jev/forced';
+import { JEV_PINNED_OPENROUTER_MODEL, JEV_PINNED_TYPESAFE_MODEL, JEV_POLICY_VERSION } from '../src/lib/dealerStrategies/jev/policy';
 import {
   clampJevConfidenceMin,
   JEV_CONFIDENCE_THRESHOLD,
@@ -47,6 +49,7 @@ export const jevDealerStateSchema = z
     skipPlayerTurn: z.boolean(),
     currentRound: z.number().int().min(1).max(8).optional(),
     confidenceMin: z.number().min(0).max(1).optional(),
+    knownChamber: z.enum(['live', 'blank']).nullable().optional(),
   })
   .strict();
 
@@ -71,7 +74,7 @@ export function resolveJevProvider(env: NodeJS.ProcessEnv = process.env): Resolv
       provider: 'typesafe',
       url: TYPESAFE_URL,
       key: tsKey,
-      model: override || 'jev-latest',
+      model: override || JEV_PINNED_TYPESAFE_MODEL,
     };
   }
   if (explicit === 'openrouter') {
@@ -80,7 +83,7 @@ export function resolveJevProvider(env: NodeJS.ProcessEnv = process.env): Resolv
       provider: 'openrouter',
       url: OPENROUTER_URL,
       key: orKey,
-      model: override || 'typesafe/jev-1.13',
+      model: override || JEV_PINNED_OPENROUTER_MODEL,
     };
   }
 
@@ -89,7 +92,7 @@ export function resolveJevProvider(env: NodeJS.ProcessEnv = process.env): Resolv
       provider: 'typesafe',
       url: TYPESAFE_URL,
       key: tsKey,
-      model: override || 'jev-latest',
+      model: override || JEV_PINNED_TYPESAFE_MODEL,
     };
   }
   if (orKey) {
@@ -97,7 +100,7 @@ export function resolveJevProvider(env: NodeJS.ProcessEnv = process.env): Resolv
       provider: 'openrouter',
       url: OPENROUTER_URL,
       key: orKey,
-      model: override || 'typesafe/jev-1.13',
+      model: override || JEV_PINNED_OPENROUTER_MODEL,
     };
   }
   return { provider: 'none', reason: 'no-key' };
@@ -210,6 +213,7 @@ export function toDealerContext(state: JevDealerState): DealerContext {
     skipPlayerTurn: state.skipPlayerTurn,
     currentRound: state.currentRound,
     confidenceMin: state.confidenceMin,
+    knownChamber: state.knownChamber ?? null,
   };
 }
 
@@ -219,6 +223,9 @@ export async function resolveJevDealerTurn(
 ): Promise<JevDealerResponse> {
   const env = options.env ?? process.env;
   const ctx = toDealerContext(state);
+  const forced = resolveForcedDealerTurn(ctx);
+  if (forced) return forced;
+
   const resolved = resolveJevProvider(env);
   if (resolved.provider === 'none') {
     return {
@@ -229,13 +236,16 @@ export async function resolveJevDealerTurn(
         action: 'fallback',
         confidence: 0,
         probabilities: {},
-        liveBelief: 2,
+        nouls: {},
+        liveBelief: 0.5,
         shootTarget: 'player',
         latencyMs: 0,
         model: 'balanced',
         provider: 'none',
         fallback: true,
         reason: 'no-key',
+        ruleFired: 'fallback',
+        policyVersion: JEV_POLICY_VERSION,
       },
     };
   }
@@ -243,7 +253,7 @@ export async function resolveJevDealerTurn(
   const request = buildJevRequest(ctx, resolved.model);
   const caller = options.call ?? callJev;
   const result = await caller(request, { env, timeoutMs: timeoutMs(env) });
-  return answersToDecision(ctx, result.answers, {
+  const decision = answersToDecision(ctx, result.answers, {
     latencyMs: result.latencyMs,
     model: result.model,
     provider: result.provider,
@@ -251,4 +261,21 @@ export async function resolveJevDealerTurn(
     reason: result.ok ? undefined : result.reason,
     confidenceMin: clampJevConfidenceMin(state.confidenceMin ?? confidenceMin(env)),
   });
+  if (!process.env.VITEST) {
+    console.info(
+      JSON.stringify({
+        tag: 'jev-turn',
+        policyVersion: JEV_POLICY_VERSION,
+        model: decision.hud.model,
+        ruleFired: decision.hud.ruleFired,
+        action: decision.hud.action,
+        liveBelief: decision.hud.liveBelief,
+        nouls: decision.hud.nouls,
+        fallback: decision.fallback,
+        reason: decision.hud.reason,
+        latencyMs: decision.hud.latencyMs,
+      })
+    );
+  }
+  return decision;
 }
