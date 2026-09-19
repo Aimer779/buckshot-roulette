@@ -9,7 +9,7 @@ import {
   type JevHud,
 } from '@/lib/dealerStrategies';
 import { fetchJevDealerTurn, localJevFallback } from '@/lib/dealerStrategies/jev/client';
-import { resolveForcedDealerTurn } from '@/lib/dealerStrategies/jev/forced';
+import { retargetAfterItem } from '@/lib/dealerStrategies/jev/retarget';
 import { ACTION_LABELS, type JevDealerState } from '@/lib/dealerStrategies/jev/types';
 import { countShells, getRemainingShells } from '@/lib/shellFlow';
 import { resolveShotOutcome, type ShotOutcome } from '@/lib/shotResolution';
@@ -46,6 +46,7 @@ function buildDealerContext(s: ReturnType<typeof useGameStore.getState>): Dealer
     shellsRemaining: remaining.length,
     dealerItems: s.dealerItems,
     dealerSawActive: s.dealerSawActive,
+    playerSawActive: s.playerSawActive,
     guillotineTriggered: s.guillotineTriggered,
     playerItems: s.playerItems,
     playerMaxHP: s.playerMaxHP,
@@ -73,6 +74,8 @@ function buildJevDealerState(s: ReturnType<typeof useGameStore.getState>): JevDe
     currentRound: s.currentRound,
     confidenceMin: s.jevConfidenceMin,
     knownChamber: s.dealerKnownChamber,
+    playerSawActive: s.playerSawActive,
+    turnId: `jev-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
   };
 }
 
@@ -253,30 +256,21 @@ export function useDealerTurn({
         let turnDecision: DealerTurnDecision;
 
         if (strategy.id === JEV_STRATEGY_ID) {
-          const forced = resolveForcedDealerTurn(ctx);
-          if (forced) {
-            await delay(thinkMs, abort.signal);
-            if (abort.signal.aborted) return;
-            setJevHud(forced.hud);
-            logJevHud(forced.hud, addLog);
-            turnDecision = forced.turn;
-          } else {
-            const jevState = buildJevDealerState(s);
-            const jevSignal = abortAfter(abort.signal, 3000);
-            const [jevResult] = await Promise.all([
-              fetchJevDealerTurn(jevState, jevSignal).catch((err: unknown) => {
-                if (abort.signal.aborted) return localJevFallback(jevState, 'aborted');
-                const name = err instanceof Error ? err.name : '';
-                const reason = name === 'AbortError' || name === 'TimeoutError' ? 'timeout' : 'network';
-                return localJevFallback(jevState, reason);
-              }),
-              delay(thinkMs, abort.signal),
-            ]);
-            if (abort.signal.aborted) return;
-            setJevHud(jevResult.hud);
-            logJevHud(jevResult.hud, addLog);
-            turnDecision = jevResult.turn;
-          }
+          const jevState = buildJevDealerState(s);
+          const jevSignal = abortAfter(abort.signal, 3000);
+          const [jevResult] = await Promise.all([
+            fetchJevDealerTurn(jevState, jevSignal).catch((err: unknown) => {
+              if (abort.signal.aborted) return localJevFallback(jevState, 'aborted');
+              const name = err instanceof Error ? err.name : '';
+              const reason = name === 'AbortError' || name === 'TimeoutError' ? 'timeout' : 'network';
+              return localJevFallback(jevState, reason);
+            }),
+            delay(thinkMs, abort.signal),
+          ]);
+          if (abort.signal.aborted) return;
+          setJevHud(jevResult.hud);
+          logJevHud(jevResult.hud, addLog);
+          turnDecision = jevResult.turn;
         } else {
           turnDecision = resolveDealerTurnDecision(strategy, ctx);
           await delay(thinkMs, abort.signal);
@@ -291,7 +285,17 @@ export function useDealerTurn({
             applyDealerItem(item);
             setTimeout(() => {
               if (abort.signal.aborted) return;
-              executeDealerShoot(turnDecision.shootTarget);
+              const after = useGameStore.getState();
+              const shootTarget =
+                strategy.id === JEV_STRATEGY_ID
+                  ? retargetAfterItem(
+                      item.type,
+                      turnDecision.shootTarget,
+                      buildDealerContext(after),
+                      after.jevConfidenceMin
+                    )
+                  : turnDecision.shootTarget;
+              executeDealerShoot(shootTarget);
             }, 1200);
           } else {
             executeDealerShoot(turnDecision.shootTarget);

@@ -2,7 +2,12 @@ import { z } from 'zod';
 import { answersToDecision, fallbackTurn } from '../src/lib/dealerStrategies/jev/answersToDecision';
 import { buildJevRequest } from '../src/lib/dealerStrategies/jev/buildJevRequest';
 import { resolveForcedDealerTurn } from '../src/lib/dealerStrategies/jev/forced';
-import { JEV_PINNED_OPENROUTER_MODEL, JEV_PINNED_TYPESAFE_MODEL, JEV_POLICY_VERSION } from '../src/lib/dealerStrategies/jev/policy';
+import {
+  JEV_PINNED_OPENROUTER_MODEL,
+  JEV_PINNED_TYPESAFE_MODEL,
+  JEV_POLICY_VERSION,
+  modelLooksPinned,
+} from '../src/lib/dealerStrategies/jev/policy';
 import {
   clampJevConfidenceMin,
   JEV_CONFIDENCE_THRESHOLD,
@@ -50,6 +55,8 @@ export const jevDealerStateSchema = z
     currentRound: z.number().int().min(1).max(8).optional(),
     confidenceMin: z.number().min(0).max(1).optional(),
     knownChamber: z.enum(['live', 'blank']).nullable().optional(),
+    playerSawActive: z.boolean().optional(),
+    turnId: z.string().min(1).max(64).optional(),
   })
   .strict();
 
@@ -214,7 +221,36 @@ export function toDealerContext(state: JevDealerState): DealerContext {
     currentRound: state.currentRound,
     confidenceMin: state.confidenceMin,
     knownChamber: state.knownChamber ?? null,
+    playerSawActive: state.playerSawActive === true,
   };
+}
+
+function logJevTurn(
+  hud: JevDealerResponse['hud'],
+  extra: Record<string, unknown> = {}
+) {
+  if (process.env.VITEST) return;
+  const pin =
+    hud.provider === 'openrouter' ? JEV_PINNED_OPENROUTER_MODEL : JEV_PINNED_TYPESAFE_MODEL;
+  const modelDrift =
+    hud.ruleFired === 'jev' && hud.model ? !modelLooksPinned(hud.model, pin) : false;
+  console.info(
+    JSON.stringify({
+      tag: 'jev-turn',
+      policyVersion: JEV_POLICY_VERSION,
+      turnId: hud.turnId,
+      model: hud.model,
+      modelDrift,
+      ruleFired: hud.ruleFired,
+      action: hud.action,
+      liveBelief: hud.liveBelief,
+      nouls: hud.nouls,
+      fallback: extra.fallback ?? hud.fallback,
+      reason: hud.reason,
+      latencyMs: hud.latencyMs,
+      ...extra,
+    })
+  );
 }
 
 export async function resolveJevDealerTurn(
@@ -223,12 +259,26 @@ export async function resolveJevDealerTurn(
 ): Promise<JevDealerResponse> {
   const env = options.env ?? process.env;
   const ctx = toDealerContext(state);
+  const logCtx = {
+    turnId: state.turnId,
+    round: state.currentRound,
+    shellsRemaining: state.shellsRemaining,
+    liveCount: state.liveCount,
+    blankCount: state.blankCount,
+    shootT: clampJevConfidenceMin(state.confidenceMin ?? confidenceMin(env)),
+    knownChamber: state.knownChamber ?? null,
+  };
+
   const forced = resolveForcedDealerTurn(ctx);
-  if (forced) return forced;
+  if (forced) {
+    forced.hud.turnId = state.turnId;
+    logJevTurn(forced.hud, { ...logCtx, fallback: false });
+    return forced;
+  }
 
   const resolved = resolveJevProvider(env);
   if (resolved.provider === 'none') {
-    return {
+    const none: JevDealerResponse = {
       ok: false,
       fallback: true,
       turn: fallbackTurn(ctx),
@@ -246,8 +296,11 @@ export async function resolveJevDealerTurn(
         reason: 'no-key',
         ruleFired: 'fallback',
         policyVersion: JEV_POLICY_VERSION,
+        turnId: state.turnId,
       },
     };
+    logJevTurn(none.hud, { ...logCtx, fallback: true });
+    return none;
   }
 
   const request = buildJevRequest(ctx, resolved.model);
@@ -261,21 +314,9 @@ export async function resolveJevDealerTurn(
     reason: result.ok ? undefined : result.reason,
     confidenceMin: clampJevConfidenceMin(state.confidenceMin ?? confidenceMin(env)),
   });
-  if (!process.env.VITEST) {
-    console.info(
-      JSON.stringify({
-        tag: 'jev-turn',
-        policyVersion: JEV_POLICY_VERSION,
-        model: decision.hud.model,
-        ruleFired: decision.hud.ruleFired,
-        action: decision.hud.action,
-        liveBelief: decision.hud.liveBelief,
-        nouls: decision.hud.nouls,
-        fallback: decision.fallback,
-        reason: decision.hud.reason,
-        latencyMs: decision.hud.latencyMs,
-      })
-    );
-  }
+  decision.hud.turnId = state.turnId;
+  decision.hud.modelDrift =
+    decision.hud.ruleFired === 'jev' && !modelLooksPinned(decision.hud.model, resolved.model);
+  logJevTurn(decision.hud, { ...logCtx, fallback: decision.fallback });
   return decision;
 }

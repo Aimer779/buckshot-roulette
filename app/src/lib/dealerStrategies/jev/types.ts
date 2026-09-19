@@ -1,13 +1,9 @@
 import type { Item } from '@/store/gameStore';
 import type { DealerTurnDecision } from '../resolveDealerTurn';
 
-export const JEV_STRATEGY_ID = 'jev';
-export const JEV_CONFIDENCE_THRESHOLD = 0.55;
+export { JEV_CONFIDENCE_THRESHOLD, clampJevConfidenceMin } from './policy';
 
-export function clampJevConfidenceMin(value: number): number {
-  if (!Number.isFinite(value)) return JEV_CONFIDENCE_THRESHOLD;
-  return Math.min(1, Math.max(0, value));
-}
+export const JEV_STRATEGY_ID = 'jev';
 
 export type JevProvider = 'typesafe' | 'openrouter' | 'none';
 
@@ -29,6 +25,9 @@ export interface JevDealerState {
   /** Maps onto shootT: how live the chamber must look before shooting the player. */
   confidenceMin?: number;
   knownChamber?: 'live' | 'blank' | null;
+  playerSawActive?: boolean;
+  /** Client-generated id so a later revealedShell can join this decision. */
+  turnId?: string;
 }
 
 export type JevRuleFired = 'forced' | 'jev' | 'fallback';
@@ -47,6 +46,8 @@ export interface JevHud {
   reason?: string;
   ruleFired: JevRuleFired;
   policyVersion?: string;
+  turnId?: string;
+  modelDrift?: boolean;
 }
 
 export interface JevDealerResponse {

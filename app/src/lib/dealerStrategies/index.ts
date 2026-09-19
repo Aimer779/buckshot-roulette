@@ -3,11 +3,8 @@ export { balancedStrategy } from './balancedStrategy';
 export { aggressiveStrategy } from './aggressiveStrategy';
 export { conservativeStrategy } from './conservativeStrategy';
 export { jevStrategy } from './jevStrategy';
-export {
-  JEV_STRATEGY_ID,
-  JEV_CONFIDENCE_THRESHOLD,
-  clampJevConfidenceMin,
-} from './jev/types';
+export { JEV_STRATEGY_ID } from './jev/types';
+export { JEV_CONFIDENCE_THRESHOLD, clampJevConfidenceMin } from './jev/policy';
 export type { JevHud, JevDealerResponse } from './jev/types';
 export { resolveForcedDealerTurn } from './jev/forced';
 export {

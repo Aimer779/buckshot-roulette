@@ -24,7 +24,6 @@ export const ACTION_ITEM_TYPE: Record<string, string> = Object.fromEntries(
 export function legalDealerActions(ctx: DealerContext): string[] {
   const actions: string[] = ['shoot-self', 'shoot-player'];
   const types = new Set(ctx.dealerItems.map((item) => item.type));
-  const playerItems = ctx.playerItems ?? [];
   const playerCuffed = ctx.skipPlayerTurn === true;
   const known = inferredKnownChamber(ctx);
 
@@ -43,12 +42,6 @@ export function legalDealerActions(ctx: DealerContext): string[] {
   }
   if (types.has('handsaw') && !ctx.dealerSawActive) {
     actions.push('use-handsaw');
-  }
-  if (types.has('adrenaline') && playerItems.length > 0) {
-    actions.push('use-adrenaline');
-  }
-  if (types.has('medicine') && !ctx.guillotineTriggered && ctx.dealerHP > 1) {
-    actions.push('use-medicine');
   }
   if (types.has('inverter') && ctx.shellsRemaining > 0) {
     actions.push('use-inverter');

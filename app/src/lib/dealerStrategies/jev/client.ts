@@ -25,6 +25,8 @@ export function toJevRequestBody(state: JevDealerState): JevDealerState {
     currentRound: state.currentRound,
     confidenceMin: clampJevConfidenceMin(state.confidenceMin ?? JEV_CONFIDENCE_THRESHOLD),
     knownChamber: state.knownChamber ?? null,
+    playerSawActive: state.playerSawActive === true,
+    ...(state.turnId ? { turnId: state.turnId } : {}),
   };
 }
 

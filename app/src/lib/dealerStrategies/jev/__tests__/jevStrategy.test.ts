@@ -31,7 +31,7 @@ describe('legalDealerActions', () => {
     expect(legalDealerActions(ctx())).toEqual(['shoot-self', 'shoot-player']);
   });
 
-  it('includes beer, inverter, medicine, and handsaw when legal', () => {
+  it('includes beer, inverter, and handsaw when legal', () => {
     const actions = legalDealerActions(
       ctx({
         dealerHP: 4,
@@ -45,8 +45,8 @@ describe('legalDealerActions', () => {
     );
     expect(actions).toContain('use-beer');
     expect(actions).toContain('use-inverter');
-    expect(actions).toContain('use-medicine');
     expect(actions).toContain('use-handsaw');
+    expect(actions).not.toContain('use-medicine');
   });
 
   it('includes magnifier only while the chamber is unknown; still omits phone', () => {
@@ -75,14 +75,14 @@ describe('legalDealerActions', () => {
     ).toContain('use-handcuffs');
   });
 
-  it('omits adrenaline when the player has no items', () => {
+  it('omits adrenaline even when the player has stealable items (dealer cannot execute it)', () => {
     const adrenaline = makeItem('adrenaline');
     expect(legalDealerActions(ctx({ dealerItems: [adrenaline], playerItems: [] }))).not.toContain(
       'use-adrenaline'
     );
     expect(
       legalDealerActions(ctx({ dealerItems: [adrenaline], playerItems: [makeItem('beer')] }))
-    ).toContain('use-adrenaline');
+    ).not.toContain('use-adrenaline');
   });
 
   it('omits cigarette at full HP or during guillotine', () => {
@@ -190,6 +190,58 @@ describe('forced dealer turns', () => {
       shootTarget: 'dealer',
     });
   });
+
+  it('does not waste a saw when 1 damage already kills', async () => {
+    const { resolveForcedDealerTurn } = await import('../forced');
+    const saw = makeItem('handsaw');
+    const result = resolveForcedDealerTurn(
+      ctx({ liveCount: 2, blankCount: 0, playerHP: 1, dealerItems: [saw] })
+    );
+    expect(result?.turn).toEqual({ action: 'shoot', target: 'dealer' });
+  });
+
+  it('cuffs first when a return live shot would kill the dealer', async () => {
+    const { resolveForcedDealerTurn } = await import('../forced');
+    const cuffs = makeItem('handcuffs');
+    const result = resolveForcedDealerTurn(
+      ctx({
+        liveCount: 2,
+        blankCount: 0,
+        dealerHP: 1,
+        shellsRemaining: 4,
+        dealerItems: [cuffs],
+      })
+    );
+    expect(result?.hud.reason).toBe('known-live-cuff');
+    expect(result?.turn).toEqual({
+      action: 'use-item',
+      itemId: cuffs.id,
+      shootTarget: 'dealer',
+    });
+  });
+});
+
+describe('retargetAfterItem', () => {
+  it('flips the pre-item shoot target after an inverter', async () => {
+    const { retargetAfterItem } = await import('../retarget');
+    expect(retargetAfterItem('inverter', 'dealer', ctx(), 0.55)).toBe('self');
+    expect(retargetAfterItem('inverter', 'self', ctx(), 0.55)).toBe('dealer');
+  });
+
+  it('uses the new known chamber after a magnifier peek', async () => {
+    const { retargetAfterItem } = await import('../retarget');
+    expect(retargetAfterItem('magnifier', 'dealer', ctx({ knownChamber: 'blank' }), 0.55)).toBe(
+      'self'
+    );
+    expect(retargetAfterItem('magnifier', 'self', ctx({ knownChamber: 'live' }), 0.55)).toBe(
+      'dealer'
+    );
+  });
+
+  it('does not retarget after a cigarette', async () => {
+    const { retargetAfterItem } = await import('../retarget');
+    expect(retargetAfterItem('cigarette', 'dealer', ctx(), 0.55)).toBe('dealer');
+  });
 });
 
 describe('toJevRequestBody', () => {
@@ -227,6 +279,7 @@ describe('toJevRequestBody', () => {
       'playerHP',
       'playerItems',
       'playerMaxHP',
+      'playerSawActive',
       'shellsRemaining',
       'skipPlayerTurn',
     ]);

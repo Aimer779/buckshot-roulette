@@ -12,6 +12,7 @@ export function toDealerContextFromJevState(ctx: DealerContext): DealerContext {
     shellsRemaining: ctx.shellsRemaining,
     dealerItems: ctx.dealerItems,
     dealerSawActive: ctx.dealerSawActive,
+    playerSawActive: ctx.playerSawActive === true,
     guillotineTriggered: ctx.guillotineTriggered,
     playerItems: ctx.playerItems ?? [],
     playerMaxHP: ctx.playerMaxHP,

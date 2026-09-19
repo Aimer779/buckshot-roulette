@@ -59,6 +59,15 @@ describe('magnifier info leak', () => {
   });
 });
 
+describe('dealer inverter', () => {
+  it('flips the chambered shell instead of no-op', () => {
+    const result = executeItemEffect(ctx('dealer', 'inverter'));
+    expect(result).not.toBeNull();
+    expect(result?.shellUpdates?.[0].type).toBe('blank');
+    expect(result?.consumedItemIds).toHaveLength(1);
+  });
+});
+
 describe('guillotine fatal damage', () => {
   beforeEach(() => {
     useGameStore.setState({

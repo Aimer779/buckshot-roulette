@@ -19,16 +19,17 @@ export const DEALER_EFFECTIVE_ITEM_TYPES = [
   'handsaw',
   'handcuffs',
   'beer',
+  'magnifier',
+  'inverter',
 ] as const satisfies readonly ItemType[];
 
 /**
- * Player-only items. dealerDecision never selects these; executeItemEffect returns
- * null for dealer so inventory is not silently burned if AI starts using them later.
+ * Player-only items. executeItemEffect returns null for dealer so inventory is
+ * not silently burned. Keep in sync with legalDealerActions (do not offer these).
  */
 export const DEALER_PLAYER_ONLY_ITEM_TYPES = [
   'adrenaline',
   'medicine',
-  'inverter',
 ] as const satisfies readonly ItemType[];
 
 export interface ItemEffectContext {
@@ -80,10 +81,9 @@ export interface ItemEffectResult {
  *
  * Replaces the legacy inline switch statements in GameplayScreen.
  *
- * Dealer contract: cigarette/handsaw/handcuffs/beer have real rules.
- * phone is selected by dealer AI but intentionally noop (consume + sfx only),
- * matching the old executeDealerItemUse default branch. Player-only types return
- * null for dealer so a future AI change cannot silently waste them.
+ * Dealer contract: cigarette/handsaw/handcuffs/beer/magnifier/inverter have real rules.
+ * phone is selected by rule AI but intentionally noop (consume + sfx only).
+ * adrenaline/medicine return null for dealer — also omitted from legalDealerActions.
  */
 export function executeItemEffect(ctx: ItemEffectContext): ItemEffectResult | null {
   const { actor, item } = ctx;

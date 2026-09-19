@@ -15,6 +15,8 @@ export interface DealerContext {
   shellsRemaining: number;
   dealerItems: Item[];
   dealerSawActive: boolean;
+  /** Player saw, for closed-form "they can kill me this load". */
+  playerSawActive?: boolean;
   guillotineTriggered: boolean;
   /** Public player hand. Jev uses this for adrenaline; rule strategies ignore it. */
   playerItems?: Item[];

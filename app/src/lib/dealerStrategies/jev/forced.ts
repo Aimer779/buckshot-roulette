@@ -46,7 +46,25 @@ export function resolveForcedDealerTurn(ctx: DealerContext): JevDealerResponse |
     return pack(ctx, 'shoot-self', { action: 'shoot', target: 'self' }, 'known-blank');
   }
 
-  if (legal.has('use-handsaw')) {
+  // Known live. Cuffing first is strictly better if a return live shot would kill us.
+  const oppHasSaw =
+    ctx.playerSawActive === true ||
+    (ctx.playerItems ?? []).some((item) => item.type === 'handsaw');
+  const theyKillIfLive = ctx.dealerHP <= (oppHasSaw ? 2 : 1);
+  if (legal.has('use-handcuffs') && theyKillIfLive) {
+    const itemId = itemIdForAction(ctx, 'use-handcuffs');
+    if (itemId) {
+      return pack(
+        ctx,
+        'use-handcuffs',
+        { action: 'use-item', itemId, shootTarget: 'dealer' },
+        'known-live-cuff'
+      );
+    }
+  }
+
+  // Saw is wasted if 1 damage already kills.
+  if (legal.has('use-handsaw') && ctx.playerHP > 1) {
     const itemId = itemIdForAction(ctx, 'use-handsaw');
     if (itemId) {
       return pack(
