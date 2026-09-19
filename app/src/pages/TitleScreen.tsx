@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Volume2, VolumeX, X, Settings, HelpCircle, Play, Check } from 'lucide-react';
 import { useGameStore } from '@/store/gameStore';
 import { playSFX, playBGM } from '@/lib/sound';
-import { DEALER_STRATEGIES, getStrategyById } from '@/lib/dealerStrategies';
+import { DEALER_STRATEGIES, JEV_STRATEGY_ID, getStrategyById } from '@/lib/dealerStrategies';
 
 // ─── Dust Particle Component ─────────────────────────────
 
@@ -163,6 +163,8 @@ function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
     setItemEffectTipsEnabled,
     dealerStrategyId,
     setDealerStrategyId,
+    jevConfidenceMin,
+    setJevConfidenceMin,
   } = useGameStore();
 
   return (
@@ -204,6 +206,7 @@ function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
 
             <div className="w-full h-px" style={{ backgroundColor: 'var(--bg-elevated)' }} />
 
+            <div className="flex-1 overflow-y-auto flex flex-col gap-6 pr-1">
             {/* Sound toggle */}
             <div className="flex items-center justify-between">
               <span className="font-chinese text-base" style={{ color: 'var(--text-primary)' }}>
@@ -296,6 +299,32 @@ function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                   </option>
                 ))}
               </select>
+              {dealerStrategyId === JEV_STRATEGY_ID && (
+                <div className="flex flex-col gap-1.5 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-chinese text-sm" style={{ color: 'var(--text-primary)' }}>
+                      Jev 置信阈值
+                    </span>
+                    <span className="font-chinese text-sm tabular-nums" style={{ color: 'var(--accent-gold)' }}>
+                      {Math.round(jevConfidenceMin * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value={Math.round(jevConfidenceMin * 100)}
+                    onChange={(e) => setJevConfidenceMin(Number(e.target.value) / 100)}
+                    aria-label="Jev 置信阈值"
+                    className="w-full h-2 rounded-full appearance-none cursor-pointer"
+                    style={{ backgroundColor: 'var(--bg-elevated)' }}
+                  />
+                  <span className="font-chinese text-xs" style={{ color: 'var(--text-dim)' }}>
+                    模型置信度低于此值时回退均衡型。越低越听 Jev，越高越稳。
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Music volume */}
@@ -328,6 +357,7 @@ function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                 className="w-full h-2 rounded-full appearance-none cursor-pointer"
                 style={{ backgroundColor: 'var(--bg-elevated)' }}
               />
+            </div>
             </div>
 
             <div className="mt-auto">

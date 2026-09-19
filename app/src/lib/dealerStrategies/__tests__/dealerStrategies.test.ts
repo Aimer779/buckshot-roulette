@@ -36,12 +36,13 @@ function ctx(overrides: Partial<DealerContext> = {}): DealerContext {
 }
 
 describe('strategy registry', () => {
-  it('registers three strategies', () => {
-    expect(DEALER_STRATEGIES).toHaveLength(3);
+  it('registers four strategies', () => {
+    expect(DEALER_STRATEGIES).toHaveLength(4);
     expect(DEALER_STRATEGIES.map((s) => s.id)).toEqual([
       'balanced',
       'aggressive',
       'conservative',
+      'jev',
     ]);
   });
 
@@ -52,6 +53,12 @@ describe('strategy registry', () => {
   it('returns requested strategy for known ids', () => {
     expect(getStrategyById('aggressive').id).toBe('aggressive');
     expect(getStrategyById('conservative').id).toBe('conservative');
+    expect(getStrategyById('jev').id).toBe('jev');
+  });
+
+  it('jev decide proxies balanced so a sync fallback stays legal', () => {
+    const c = ctx({ liveCount: 1, blankCount: 2, shellsRemaining: 3 });
+    expect(getStrategyById('jev').decide(c).action).toBe(balancedStrategy.decide(c).action);
   });
 });
 
@@ -182,6 +189,15 @@ describe('store integration', () => {
   it('setDealerStrategyId updates the store', () => {
     useGameStore.getState().setDealerStrategyId('aggressive');
     expect(useGameStore.getState().dealerStrategyId).toBe('aggressive');
+  });
+
+  it('setJevConfidenceMin clamps and stores the threshold', () => {
+    useGameStore.getState().setJevConfidenceMin(0.15);
+    expect(useGameStore.getState().jevConfidenceMin).toBe(0.15);
+    useGameStore.getState().setJevConfidenceMin(2);
+    expect(useGameStore.getState().jevConfidenceMin).toBe(1);
+    useGameStore.getState().setJevConfidenceMin(-1);
+    expect(useGameStore.getState().jevConfidenceMin).toBe(0);
   });
 });
 

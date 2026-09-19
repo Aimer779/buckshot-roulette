@@ -1,6 +1,8 @@
 import { motion } from 'framer-motion';
 import HealthBar from '@/components/HealthBar';
 import ItemCard from '@/components/ItemCard';
+import JevDecisionHud from '@/components/gameplay/JevDecisionHud';
+import type { JevHud } from '@/lib/dealerStrategies';
 import type { GamePhase, Item } from '@/store/gameStore';
 
 interface DealerAreaProps {
@@ -8,6 +10,7 @@ interface DealerAreaProps {
   dealerMaxHP: number;
   dealerItems: Item[];
   phase: GamePhase;
+  jevHud?: JevHud | null;
 }
 
 /**
@@ -18,6 +21,7 @@ export default function DealerArea({
   dealerMaxHP,
   dealerItems,
   phase,
+  jevHud,
 }: DealerAreaProps) {
   return (
     <div className="w-full max-w-4xl flex flex-col items-center gap-2">
@@ -25,6 +29,8 @@ export default function DealerArea({
       <div className="flex items-center gap-3">
         <HealthBar current={dealerHP} max={dealerMaxHP} label="庄家" isDealer />
       </div>
+
+      {jevHud && <JevDecisionHud hud={jevHud} />}
 
       {/* Dealer items */}
       {dealerItems.length > 0 && (

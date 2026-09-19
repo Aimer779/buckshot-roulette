@@ -2,6 +2,13 @@ export type { DealerContext, DealerDecision, DealerStrategy } from './types';
 export { balancedStrategy } from './balancedStrategy';
 export { aggressiveStrategy } from './aggressiveStrategy';
 export { conservativeStrategy } from './conservativeStrategy';
+export { jevStrategy } from './jevStrategy';
+export {
+  JEV_STRATEGY_ID,
+  JEV_CONFIDENCE_THRESHOLD,
+  clampJevConfidenceMin,
+} from './jev/types';
+export type { JevHud, JevDealerResponse } from './jev/types';
 export {
   resolveDealerTurnDecision,
   type DealerTurnDecision,
@@ -10,12 +17,14 @@ export {
 import { balancedStrategy } from './balancedStrategy';
 import { aggressiveStrategy } from './aggressiveStrategy';
 import { conservativeStrategy } from './conservativeStrategy';
+import { jevStrategy } from './jevStrategy';
 import type { DealerStrategy } from './types';
 
 export const DEALER_STRATEGIES: DealerStrategy[] = [
   balancedStrategy,
   aggressiveStrategy,
   conservativeStrategy,
+  jevStrategy,
 ];
 
 export const DEFAULT_DEALER_STRATEGY_ID = balancedStrategy.id;

@@ -1,6 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, Cigarette } from 'lucide-react';
 import MessageToast from '@/components/MessageToast';
+import { useGameStore } from '@/store/gameStore';
+import { JEV_STRATEGY_ID } from '@/lib/dealerStrategies';
 import type { GamePhase } from '@/store/gameStore';
 import type { ToastMsg } from '@/hooks/useGameplayEffects';
 import type { RoundLabel } from './GameplayHud';
@@ -43,6 +45,10 @@ export default function GameplayOverlays({
   onCloseSettings,
   onQuit,
 }: GameplayOverlaysProps) {
+  const dealerStrategyId = useGameStore((s) => s.dealerStrategyId);
+  const jevConfidenceMin = useGameStore((s) => s.jevConfidenceMin);
+  const setJevConfidenceMin = useGameStore((s) => s.setJevConfidenceMin);
+
   return (
     <>
       {/* Round announcement */}
@@ -197,6 +203,30 @@ export default function GameplayOverlays({
               >
                 游戏设置
               </h3>
+
+              {dealerStrategyId === JEV_STRATEGY_ID && (
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-chinese text-sm" style={{ color: 'var(--text-primary)' }}>
+                      Jev 置信阈值
+                    </span>
+                    <span className="font-chinese text-sm tabular-nums" style={{ color: 'var(--accent-gold)' }}>
+                      {Math.round(jevConfidenceMin * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value={Math.round(jevConfidenceMin * 100)}
+                    onChange={(e) => setJevConfidenceMin(Number(e.target.value) / 100)}
+                    aria-label="Jev 置信阈值"
+                    className="w-full h-2 rounded-full appearance-none cursor-pointer"
+                    style={{ backgroundColor: 'var(--bg-elevated)' }}
+                  />
+                </div>
+              )}
 
               <button
                 onClick={onCloseSettings}

@@ -16,6 +16,12 @@ export interface DealerContext {
   dealerItems: Item[];
   dealerSawActive: boolean;
   guillotineTriggered: boolean;
+  /** Public player hand. Jev uses this for adrenaline; rule strategies ignore it. */
+  playerItems?: Item[];
+  playerMaxHP?: number;
+  /** True when the player is already skipped next turn (handcuffs spent). */
+  skipPlayerTurn?: boolean;
+  currentRound?: number;
 }
 
 export interface DealerDecision {

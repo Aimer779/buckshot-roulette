@@ -64,6 +64,7 @@ export default function GameplayScreen() {
               dealerMaxHP={state.dealerMaxHP}
               dealerItems={state.dealerItems}
               phase={state.phase}
+              jevHud={state.phase === 'DEALER_TURN' ? state.jevHud : null}
             />
 
             {/* ─── Central Game Area ─── */}

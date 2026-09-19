@@ -80,6 +80,21 @@ pnpm dev
 
 开发服务器默认运行在 http://localhost:3000/，同时提供联机房间 API。修改 `server/` 或其复用的游戏规则后，需要重启开发服务，现有房间会随之清空。
 
+### Jev 庄家（可选）
+
+标题页「庄家风格」可选 `Jev · System One`。密钥只放在 `app/.env`（模板：`app/.env.example`），不要加 `VITE_` 前缀。
+
+```bash
+cd app
+cp .env.example .env   # Windows: copy .env.example .env
+# 填入 TYPESAFE_API_KEY（官方）和/或 OPENROUTER_API_KEY
+```
+
+- `JEV_PROVIDER=auto`（默认）：有官方 key 走 TypeSafe `POST https://api.typesafe.ai/v1/systemone`；否则走 OpenRouter `POST https://openrouter.ai/api/alpha/decisions`
+- 也可显式设 `JEV_PROVIDER=typesafe` 或 `openrouter`
+- 未配置密钥时 Jev 模式自动回退均衡型，游戏仍可玩
+- 改 `.env` 后需重启 `pnpm dev`
+
 如果本机用 pnpm 11 运行旧版 pnpm 已安装的依赖时，遇到自动重装检查或 `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`，可用 `pnpm --config.verifyDepsBeforeRun=false run dev` 复用当前依赖；同样的参数也可用于 `build`、`test`、`lint`。
 
 ### 双人联机

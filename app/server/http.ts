@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { z } from 'zod';
 import { RoomError, Rooms } from './rooms';
 import { clientAddressResolver } from './clientAddress';
+import { jevDealerStateSchema, resolveJevDealerTurn } from './jev';
 
 const credentials = z.object({
   name: z.string().trim().min(1).max(20),
@@ -19,7 +20,7 @@ const action = z.discriminatedUnion('type', [
 ]);
 const command = z.object({ revision: z.number().int().nonnegative(), action });
 
-async function readBody(request: IncomingMessage) {
+async function readBody(request: IncomingMessage, maxBytes = 4096) {
   if (!request.headers['content-type']?.startsWith('application/json')) {
     throw new RoomError('请求必须使用 JSON。', 415);
   }
@@ -27,7 +28,7 @@ async function readBody(request: IncomingMessage) {
   let size = 0;
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > 4096) throw new RoomError('请求过大。', 413);
+    if (size > maxBytes) throw new RoomError('请求过大。', 413);
     chunks.push(Buffer.from(chunk));
   }
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown; }
@@ -42,6 +43,7 @@ function send(response: ServerResponse, status: number, body: unknown) {
 
 export function createApiHandler(rooms = new Rooms(), options: { trustedProxies?: string } = {}) {
   const attempts = new Map<string, { count: number; until: number }>();
+  const jevAttempts = new Map<string, { count: number; until: number }>();
   const clientAddress = clientAddressResolver(options.trustedProxies ?? process.env.TRUSTED_PROXIES ?? '');
   return async (request: IncomingMessage, response: ServerResponse) => {
     try {
@@ -51,6 +53,27 @@ export function createApiHandler(rooms = new Rooms(), options: { trustedProxies?
       const url = new URL(request.url ?? '/', 'http://localhost');
       const path = url.pathname;
       if (path === '/api/health' && request.method === 'GET') return send(response, 200, { ok: true });
+      if (path === '/api/dealer/jev') {
+        if (request.method !== 'POST') throw new RoomError('不支持此操作。', 405);
+        const now = Date.now();
+        for (const [key, value] of jevAttempts) if (value.until <= now) jevAttempts.delete(key);
+        const ip = clientAddress(request);
+        const limit = jevAttempts.get(ip) ?? { count: 0, until: now + 60_000 };
+        jevAttempts.set(ip, limit);
+        if (++limit.count > 30) throw new RoomError('尝试过于频繁，请一分钟后再试。', 429);
+        let parsed: z.infer<typeof jevDealerStateSchema>;
+        try {
+          parsed = jevDealerStateSchema.parse(await readBody(request, 32_768));
+        } catch (error) {
+          if (error instanceof z.ZodError) throw new RoomError('庄家状态无效。', 400);
+          throw error;
+        }
+        const result = await resolveJevDealerTurn({
+          ...parsed,
+          currentRound: parsed.currentRound ?? 1,
+        });
+        return send(response, 200, result);
+      }
       const match = /^\/api\/rooms(?:\/(\d{6})(?:\/(join|action))?)?$/.exec(path);
       if (!match) throw new RoomError('接口不存在。', 404);
       const [, code, operation] = match;

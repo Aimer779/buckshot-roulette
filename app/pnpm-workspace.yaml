@@ -1,0 +1,4 @@
+# pnpm 11+ reads these from this file, not from .npmrc / package.json.
+allowBuilds:
+  esbuild: true
+verifyDepsBeforeRun: false

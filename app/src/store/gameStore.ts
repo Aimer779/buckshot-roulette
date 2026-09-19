@@ -3,6 +3,8 @@ import { ROUND_CONFIG } from '@/data/roundConfig';
 import { resetItemIdCounter } from '@/lib/itemFactory';
 import {
   DEFAULT_DEALER_STRATEGY_ID,
+  JEV_CONFIDENCE_THRESHOLD,
+  clampJevConfidenceMin,
 } from '@/lib/dealerStrategies';
 
 // ─── Types ───────────────────────────────────────────────
@@ -82,6 +84,7 @@ export interface GameState {
   sfxVolume: number;
   itemEffectTipsEnabled: boolean;
   dealerStrategyId: string;
+  jevConfidenceMin: number;
 
   // Game log
   logs: GameLog[];
@@ -119,6 +122,7 @@ export interface GameState {
   setSfxVolume: (volume: number) => void;
   setItemEffectTipsEnabled: (enabled: boolean) => void;
   setDealerStrategyId: (id: string) => void;
+  setJevConfidenceMin: (value: number) => void;
   setWinner: (winner: 'player' | 'dealer' | null) => void;
 
   // Convenience
@@ -144,6 +148,7 @@ export const resetLogIdCounter = () => {
 const TUTORIAL_ROUND_COMPLETED_KEY = 'buckshot-roulette:tutorial-round-completed';
 const ITEM_EFFECT_TIPS_ENABLED_KEY = 'buckshot-roulette:item-effect-tips-enabled';
 const DEALER_STRATEGY_ID_KEY = 'buckshot-roulette:dealer-strategy-id';
+const JEV_CONFIDENCE_MIN_KEY = 'buckshot-roulette:jev-confidence-min';
 
 const readTutorialPreference = () => {
   if (typeof window === 'undefined') return true;
@@ -182,6 +187,18 @@ const readDealerStrategyId = () => {
 const writeDealerStrategyId = (id: string) => {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(DEALER_STRATEGY_ID_KEY, id);
+};
+
+const readJevConfidenceMin = () => {
+  if (typeof window === 'undefined') return JEV_CONFIDENCE_THRESHOLD;
+  const stored = window.localStorage.getItem(JEV_CONFIDENCE_MIN_KEY);
+  if (stored == null) return JEV_CONFIDENCE_THRESHOLD;
+  return clampJevConfidenceMin(Number(stored));
+};
+
+const writeJevConfidenceMin = (value: number) => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(JEV_CONFIDENCE_MIN_KEY, String(clampJevConfidenceMin(value)));
 };
 
 const getStartRound = (showTutorial: boolean) => (showTutorial ? 1 : 2);
@@ -235,6 +252,7 @@ const initialState = {
   sfxVolume: 0.8,
   itemEffectTipsEnabled: readItemEffectTipsPreference(),
   dealerStrategyId: readDealerStrategyId(),
+  jevConfidenceMin: readJevConfidenceMin(),
   logs: [] as GameLog[],
   lastReadLogId: null as string | null,
   winner: null as 'player' | 'dealer' | null,
@@ -379,6 +397,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     const showTutorial = readTutorialPreference();
     const itemEffectTipsEnabled = readItemEffectTipsPreference();
     const dealerStrategyId = readDealerStrategyId();
+    const jevConfidenceMin = readJevConfidenceMin();
     const startRound = getStartRound(showTutorial);
     const config = ROUND_CONFIG[startRound];
     // Reset id counters so log/item ids stay compact across sessions.
@@ -389,6 +408,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       showTutorial,
       itemEffectTipsEnabled,
       dealerStrategyId,
+      jevConfidenceMin,
       currentRound: startRound,
       playerHP: config.playerHP,
       playerMaxHP: config.playerHP,
@@ -429,6 +449,12 @@ export const useGameStore = create<GameState>((set, get) => ({
   setDealerStrategyId: (id) => {
     writeDealerStrategyId(id);
     set({ dealerStrategyId: id });
+  },
+
+  setJevConfidenceMin: (value) => {
+    const jevConfidenceMin = clampJevConfidenceMin(value);
+    writeJevConfidenceMin(jevConfidenceMin);
+    set({ jevConfidenceMin });
   },
 
   setWinner: (winner) => set({ winner }),

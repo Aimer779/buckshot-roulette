@@ -1,8 +1,11 @@
 import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadAppEnv } from './env';
 import { createApiHandler } from './http';
 import { createStaticHandler } from './staticFiles';
+
+loadAppEnv();
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../dist');
 const api = createApiHandler();

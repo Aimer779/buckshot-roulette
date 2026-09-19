@@ -260,7 +260,7 @@ export function useGameplayController(navigate: NavigateFunction) {
     reloadIfEmptyOrAllBlank,
   ]);
 
-  const { dealerThinking } = useDealerTurn({
+  const { dealerThinking, jevHud } = useDealerTurn({
     phase,
     shells,
     currentShellIndex,
@@ -301,6 +301,7 @@ export function useGameplayController(navigate: NavigateFunction) {
       playerSawActive,
       skipDealerTurn,
       dealerThinking,
+      jevHud,
       actionsEnabled,
       roundLabel,
     },
